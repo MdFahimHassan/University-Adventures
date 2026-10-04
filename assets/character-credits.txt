@@ -1,0 +1,14 @@
+PLACEHOLDER - REPLACE THIS WHOLE FILE
+=====================================
+Paste the credits exported by the Universal LPC Spritesheet Character Generator here
+(Credits / Export -> download .txt or .csv, then paste its contents below).
+
+It lists, for every layer of your character (body, hair, clothes, ...):
+  - the artist(s)
+  - the license(s)
+  - the original source link(s)
+
+Until this is filled in, the game is NOT correctly credited.
+
+Generator: https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
+Collection: http://opengameart.org/content/lpc-collection

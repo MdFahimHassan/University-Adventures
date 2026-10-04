@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BRACU Rooftop</title>
+  <style>
+    body { margin:0; background:#1a1a22; display:flex; justify-content:center; align-items:center; height:100vh; }
+    /* image-rendering: pixelated keeps pixels sharp when CSS scales the canvas up */
+    canvas { width:min(100vw, 133vh); image-rendering:pixelated; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="640" height="480"></canvas>
+  <!-- type="module" lets us use import/export. It REQUIRES a local server (see README). -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
