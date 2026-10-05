@@ -1,5 +1,6 @@
 // main.js - creates everything and runs the game loop.
-import { spawn, npcSpawn, items, getExitHint, TILE } from './map.js';
+import { spawn, npcSpawn, items, getExitHint, getExit, zoneId, TILE } from './map.js';
+import { transition } from './transition.js';
 import { input } from './input.js';
 import { Player } from './player.js';
 import { NPC } from './npc.js';
@@ -28,16 +29,24 @@ function update(dt) {
     return;                                          // nothing else runs during the intro
   }
 
+  // Zone change: the fade runs, player can't move
+  if (transition.active) { transition.update(dt, game.player); game.hint = null; return; }
+
+  const npcHere = game.npc.zone === zoneId;          // the NPC lives in zone 1 only
+
   if (dialogue.active) {
     // while talking: E advances text, player can't move
     if (input.wasPressed('KeyE')) dialogue.advance();
-  } else if (input.wasPressed('KeyE') && game.npc.isNear(game.player)) {
+  } else if (input.wasPressed('KeyE') && npcHere && game.npc.isNear(game.player)) {
     const t = quest.talk();
     dialogue.start(game.npc.name, t.lines, t.next);
   }
   game.player.update(dt, !dialogue.active);
-  game.npc.facePlayer(game.player);                  // NPC turns to look at you when you're near
-  game.hint = getExitHint(Math.floor(game.player.cx / TILE), Math.floor(game.player.cy / TILE));
+  if (npcHere) game.npc.facePlayer(game.player);     // NPC turns to look at you when you're near
+  const tx = Math.floor(game.player.cx / TILE), ty = Math.floor(game.player.cy / TILE);
+  const exit = getExit(tx, ty);
+  if (exit && exit.to) { transition.start(exit); return; }   // stepped on an exit tile -> fade to the next zone
+  game.hint = getExitHint(tx, ty);
 
   // Pick up the ID card by walking over it (only once the quest asks for it)
   if (quest.state === 'find') {

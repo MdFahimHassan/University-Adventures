@@ -1,83 +1,56 @@
-// map.js - the text grid, parsed into a 2D array. EDIT THE MAP HERE.
-// ZONE 1: the rooftop entry zone (escalators, lifts, stairs, store room doors).
+// map.js - loads ONE zone at a time from zones.js into a 2D array.
+// Other files import cols/rows/items/spawn... as "live bindings", so they update automatically
+// when loadZone() switches zones.
+import { ZONES } from './zones.js';
 export const TILE = 32;
 
-// Legend (walkable = you can stand on it, solid = blocks the player)
-//   #  wall                      (solid)
-//   R  railing                   (solid)
-//   .  open stone floor          (walkable)
-//   p  path                      (walkable)   <- lowercase p. Uppercase P is the spawn marker!
-//   S  stairs up to other zone   (walkable, transition coming later)
-//   X  west exit path            (walkable, transition coming later)
-//   U  north "up" path           (walkable, transition coming later)
-//   L  lift                      (solid for now, interactable later)
-//   D  store room door           (solid for now, interactable later)
-//   E  escalator E1 = ARRIVAL, steps move WEST (solid, animated). The intro cutscene rides it.
-//   F  escalator E2 = going down, steps move EAST (solid, animated)
-//   (the east end of each escalator is the hatch where steps come out of / go into the floor)
-//   v  escalator well / drop     (solid)
-// Markers (replaced by floor when parsed): P player spawn (where the intro ends), N npc spawn, I item (ID card)
-// Every row MUST be exactly 30 characters, and there must be 18 rows.
-const MAP_TEXT = [
-"#..USSSSSSSSSSSS.U#DD########R",
-"#..pSppppppppppS.ppppp.......R",
-"#..ppppppppppppppppppppppppp.R",
-"#......pp...............pp...R",
-"#......pp...............pp...R",
-"Xpppppppp...............pp...R",
-"#..ppppppppppppppppppppppppp.R",
-"#LLppppppRRRRRRRRRRRRRRRpp...R",
-"#......pp...PEEEEEvvvvvRpp...R",
-"#.....NppRRRRvvvvvvvvvvRpp...R",
-"#......pp....FFFFFvvvvvRpp...R",
-"#LLppppppRRRRRRRRRRRRRRRpp...R",
-"#..ppppppppppppppppppppppppp.R",
-"Xpppppp......................R",
-"#............................R",
-"#.........................I..R",
-"#............................R",
-"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
-];
-
-export const cols = MAP_TEXT[0].length;
-export const rows = MAP_TEXT.length;
-export const widthPx = cols * TILE;
-export const heightPx = rows * TILE;
-
-export const grid = [];      // grid[y][x] = a single tile character
+export let zoneId = 'zone1';                 // which zone is loaded right now
+export let cols = 0, rows = 0, widthPx = 0, heightPx = 0;
+export const grid = [];                      // grid[y][x] = a single tile character
 export let spawn = { x: 1, y: 1 };
 export let npcSpawn = { x: 2, y: 2 };
-export const items = [];     // [{x, y, collected}] in tile coordinates
+export let items = [];                       // [{x, y, collected}] in tile coordinates
+const itemCache = {};                        // keeps the ID card "collected" when you leave and come back
 
-// Parse the text: P/N/I are "markers", so we store the floor under them.
-for (let y = 0; y < rows; y++) {
-  grid[y] = [];
-  for (let x = 0; x < cols; x++) {
-    let ch = MAP_TEXT[y][x];
-    if (ch === 'P') { spawn = { x, y }; ch = '.'; }
-    else if (ch === 'N') { npcSpawn = { x, y }; ch = '.'; }
-    else if (ch === 'I') { items.push({ x, y, collected: false }); ch = '.'; }
-    grid[y][x] = ch;
+export function loadZone(id) {
+  const zone = ZONES[id];
+  const text = zone.rows;
+  if (text.some((r) => r.length !== text[0].length))
+    throw new Error(`Zone "${id}": every row must be the same length (check for a missing or extra character)`);
+  zoneId = id;
+  cols = text[0].length; rows = text.length;
+  widthPx = cols * TILE; heightPx = rows * TILE;
+  spawn = zone.spawn ?? { x: 1, y: 1 };
+  grid.length = 0;
+  const found = [];
+  // Parse the text: P/N/I are "markers", so we store the floor under them.
+  for (let y = 0; y < rows; y++) {
+    grid[y] = [];
+    for (let x = 0; x < cols; x++) {
+      let ch = text[y][x];
+      if (ch === 'P') { spawn = { x, y }; ch = '.'; }
+      else if (ch === 'N') { npcSpawn = { x, y }; ch = '.'; }
+      else if (ch === 'I') { found.push({ x, y, collected: false }); ch = '.'; }
+      grid[y][x] = ch;
+    }
   }
+  if (!itemCache[id]) itemCache[id] = found;
+  items = itemCache[id];
 }
+loadZone('zone1');                           // the game starts in zone 1
 
 export function getTile(tx, ty) {
   if (tx < 0 || ty < 0 || tx >= cols || ty >= rows) return '#'; // outside = wall
   return grid[ty][tx];
 }
-export const isSolid = (tx, ty) => '#RLDvEF'.includes(getTile(tx, ty));
+export const isSolid = (tx, ty) => '#RLDvEFB~MG'.includes(getTile(tx, ty));
 
-// Exits to other zones. Not wired up yet - for now we just show a hint.
-// Key = "x,y" of the tile. Add the real zone names here when those zones exist.
-const EXIT_LABELS = {
-  '0,5': 'Right path',
-  '0,13': 'Left path',
-  '3,0': 'Up path (left)',
-  '17,0': 'Up path (right)',
-};
+// Exit info for a tile of the current zone (or null)
+export const getExit = (tx, ty) => ZONES[zoneId].exits?.[tx + ',' + ty] ?? null;
+
 export function getExitHint(tx, ty) {
-  const label = EXIT_LABELS[tx + ',' + ty];
-  if (label) return label + ' - leads to another zone (coming soon)';
+  const e = getExit(tx, ty);
+  if (e && !e.to) return e.label + ' - leads to another zone (coming soon)';
   if (getTile(tx, ty) === 'S') return 'Stairs - lead up to the lawn (coming soon)';
   return null;
 }

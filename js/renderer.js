@@ -1,5 +1,6 @@
 // renderer.js - ALL drawing lives here. Game logic never touches the canvas.
-import { TILE, cols, rows, widthPx, heightPx, getTile, isSolid, items } from './map.js';
+import { TILE, cols, rows, widthPx, heightPx, getTile, isSolid, items, zoneId } from './map.js';
+import { transition } from './transition.js';
 import { quest } from './quest.js';
 import { dialogue } from './dialogue.js';
 import { intro, escalator } from './intro.js';
@@ -23,6 +24,8 @@ const COLORS = {
   'E': '#5c5c66', 'F': '#5c5c66',       // escalators (animated in drawEscalator)
   'v': '#030305',                       // escalator well = black void (the floor below)
   'X': '#a9a28e', 'U': '#a9a28e',       // exit paths (arrow drawn on top)
+  'B': '#d9dde0',                       // pool rim
+  'M': '#5b5b66', 'G': '#5b5b66',       // restroom doors (wall colour, door drawn on top)
 };
 
 function updateCamera(player) {
@@ -49,11 +52,18 @@ function drawTile(ch, px, py, tx, ty, time) {
     ctx.fillStyle = 'rgba(0,0,0,0.12)';
     ctx.fillRect(px, py, TILE, 1); ctx.fillRect(px, py, 1, TILE);
     if ((tx + ty) % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(px, py, TILE, TILE); }
-    if (ch !== 'p') drawArrow(ch === 'X' ? '\u2190' : '\u2191', px, py);
+    if (ch !== 'p') drawArrow(ch === 'U' ? '\u2191' : (tx === 0 ? '\u2190' : '\u2192'), px, py);   // X on the west edge points left, on the east edge points right
   } else if (ch === 'R') {                            // railing: two rails + posts
     ctx.fillStyle = '#6e6c66';
     ctx.fillRect(px, py + 8, TILE, 3); ctx.fillRect(px, py + 18, TILE, 3);
     ctx.fillRect(px + 2, py + 6, 3, 18); ctx.fillRect(px + 27, py + 6, 3, 18);
+  } else if (ch === 'B') {                            // pool rim: light concrete with seams
+    ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(px, py, TILE, 2); ctx.fillRect(px, py, 2, TILE);
+  } else if (ch === 'M' || ch === 'G') {              // restroom door with a sign: M = men, W = women
+    ctx.fillStyle = '#44444d'; ctx.fillRect(px, py + TILE - 6, TILE, 6);
+    ctx.fillStyle = ch === 'M' ? '#2f6fb5' : '#c2548c'; ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 3);
+    ctx.strokeStyle = '#1b1b22'; ctx.lineWidth = 1; ctx.strokeRect(px + 3.5, py + 3.5, TILE - 7, TILE - 4);
+    ctx.font = 'bold 15px monospace'; ctx.fillStyle = '#fff'; ctx.fillText(ch === 'M' ? 'M' : 'W', px + 11, py + 22);
   } else if (ch === 'S') {                            // stairs: horizontal steps
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     for (let i = 0; i < 4; i++) ctx.fillRect(px, py + i * 8 + 6, TILE, 2);
@@ -100,7 +110,8 @@ export function render(game, time) {
   }
 
   // Draw NPC and player in order of their feet (whoever is lower on screen is drawn on top)
-  if (player.y + player.h < npc.footY) { drawPlayer(player); drawNPC(npc, player); }
+  if (npc.zone !== zoneId) drawPlayer(player);        // NPC is in another zone
+  else if (player.y + player.h < npc.footY) { drawPlayer(player); drawNPC(npc, player); }
   else { drawNPC(npc, player); drawPlayer(player); }
 
   if (debug) drawDebug(game);
@@ -114,8 +125,9 @@ export function render(game, time) {
   if (dialogue.active) drawDialogue();
   else if (game.hint && !intro.active) drawHint(game.hint);
   if (game.showCredits) drawCredits();
-  if (intro.fade > 0) {                              // fade-in from black (drawn last = covers everything)
-    ctx.fillStyle = `rgba(0,0,0,${intro.fade})`; ctx.fillRect(0, 0, VW, VH);
+  const fade = Math.max(intro.fade, transition.alpha);   // intro fade-in OR zone-change fade
+  if (fade > 0) {                                    // drawn last = covers everything
+    ctx.fillStyle = `rgba(0,0,0,${fade})`; ctx.fillRect(0, 0, VW, VH);
   }
 }
 
@@ -128,8 +140,10 @@ function drawDebug({ player, npc }) {
     if (isSolid(tx, ty)) ctx.fillRect(tx * TILE, ty * TILE, TILE, TILE);
   ctx.strokeStyle = '#0f0'; ctx.lineWidth = 2;       // player hitbox
   ctx.strokeRect(player.x, player.y, player.w, player.h);
-  ctx.strokeStyle = '#ff0';                          // NPC talk range
-  ctx.beginPath(); ctx.arc(npc.cx, npc.cy, npc.talkRange, 0, Math.PI * 2); ctx.stroke();
+  if (npc.zone === zoneId) {
+    ctx.strokeStyle = '#ff0';                        // NPC talk range
+    ctx.beginPath(); ctx.arc(npc.cx, npc.cy, npc.talkRange, 0, Math.PI * 2); ctx.stroke();
+  }
 }
 
 function drawQuestTracker(hasCard) {

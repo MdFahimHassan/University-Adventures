@@ -4,6 +4,7 @@ import { TILE } from './map.js';
 export class NPC {
   constructor(tx, ty) {
     this.x = tx * TILE; this.y = ty * TILE;  // top-left of the 32x32 tile
+    this.zone = 'zone1';                      // the NPC only exists in this zone
     this.name = 'Tanvir';
     this.talkRange = 48;                     // pixels
     // The fields below are what sprites.js needs to draw a character
