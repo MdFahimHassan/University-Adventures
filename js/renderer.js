@@ -26,6 +26,7 @@ const COLORS = {
   'X': '#a9a28e', 'U': '#a9a28e',       // exit paths (arrow drawn on top)
   'B': '#d9dde0',                       // pool rim / lawn border
   'K': '#4f4f5a',                       // storage room block (solid)
+  'C': '#c9b583', 'T': '#6b5a3a', 'b': '#4a9a4a',   // bench, tree (on soil), bush
   'M': '#5b5b66', 'G': '#5b5b66',       // restroom doors (wall colour, door drawn on top)
 };
 
@@ -34,6 +35,14 @@ function updateCamera(player) {
   camera.x = Math.max(0, Math.min(player.cx - VW / 2, widthPx - VW));
   camera.y = Math.max(0, Math.min(player.cy - VH / 2, heightPx - VH));
   camera.x = Math.round(camera.x); camera.y = Math.round(camera.y); // avoids seams
+}
+
+function drawBlobs(px, py, a) {                       // two leafy bush blobs (a = opacity)
+  ctx.globalAlpha = a;
+  ctx.fillStyle = '#2e7d32'; ctx.beginPath(); ctx.ellipse(px + 10, py + 19, 8, 8.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#388e3c'; ctx.beginPath(); ctx.ellipse(px + 22, py + 14, 8, 8.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#66bb6a'; ctx.fillRect(px + 12, py + 9, 5, 3);
+  ctx.globalAlpha = 1;
 }
 
 function drawTile(ch, px, py, tx, ty, time) {
@@ -70,6 +79,15 @@ function drawTile(ch, px, py, tx, ty, time) {
       ctx.fillStyle = 'rgba(0,0,0,0.10)';
       ctx.fillRect(px + 6 + (tx % 3) * 5, py + 8, 2, 4); ctx.fillRect(px + 20 - (ty % 3) * 4, py + 20, 2, 4);
     }
+  } else if (ch === 'C') {                            // stone bench: sandy seat with a darker front edge
+    ctx.fillStyle = '#d8c79b'; ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+    ctx.fillStyle = '#a8946a'; ctx.fillRect(px, py + TILE - 5, TILE, 5);
+  } else if (ch === 'T') {                            // small tree on soil
+    ctx.fillStyle = '#2e7d32'; ctx.beginPath(); ctx.arc(px + 16, py + 16, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#43a047'; ctx.beginPath(); ctx.arc(px + 13, py + 12, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(px + 14, py + 14, 5, 5);
+  } else if (ch === 'b') {                            // bush (walkable)
+    drawBlobs(px, py, 1);
   } else if (ch === 'K') {                            // storage room block: roof edge on top, shadow below
     ctx.fillStyle = '#6a6a76'; ctx.fillRect(px, py, TILE, 3);
     ctx.fillStyle = '#3b3b45'; ctx.fillRect(px, py + TILE - 6, TILE, 6);
@@ -249,6 +267,9 @@ function drawPlayer(player) {
     ctx.fillStyle = '#ffe0b2'; ctx.fillRect(sx + 10, sy + 10, 12, 10);
   }
   ctx.restore();
+  // Walking in a bush: draw the bush leaves again over the player's feet so he looks "inside" it
+  const ftx = Math.floor(player.cx / TILE), fty = Math.floor((player.y + player.h - 1) / TILE);
+  if (!intro.active && getTile(ftx, fty) === 'b') drawBlobs(ftx * TILE, fty * TILE, 0.9);
 }
 
 // ---- Credits screen (press C). LPC art REQUIRES visible credits, so keep this! ----

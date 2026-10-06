@@ -5,6 +5,8 @@
 //   #  wall (solid)        R  railing (solid)      .  open floor        p  path (walkable)
 //   X  exit path           U  "up" path            S  stairs            D  store room door (solid)
 //   L  lift (solid)        E/F escalators (solid, animated)             v  escalator well (solid)
+// New in zone 4:
+//   C  stone bench (solid)   T  small tree (solid)   b  bush (WALKABLE - you can walk into it)
 // New in zone 3:
 //   g  grass (walkable lawn)   K  storage room block (solid)   S on the bottom row = stairs down to zone 1
 // New in zone 2:
@@ -70,7 +72,7 @@ export const ZONES = {
     exits: {
       '29,4':  { to: 'zone1', spawn: { x: 1, y: 5 },  facing: 'right', label: 'Right path' },
       '29,13': { to: 'zone1', spawn: { x: 1, y: 13 }, facing: 'right', label: 'Left path' },
-      '2,0':   { label: 'Upper zone' },
+      '2,0':   { to: 'zone4', spawn: { x: 2, y: 16 }, facing: 'up', label: 'Upper zone' },
     },
   },
 
@@ -98,12 +100,44 @@ export const ZONES = {
       "R.XXXSSSSSSSSSSSSSSSSSSSSXXX.R",
     ],
     exits: {
-      // west paths to zone 4 (not built yet, so they only show a hint)
-      '0,5':  { label: 'West path (upper)' },
-      '0,14': { label: 'West path (lower)' },
+      // west paths lead to zone 4
+      '0,5':  { to: 'zone4', spawn: { x: 28, y: 2 },  facing: 'left', label: 'West path (upper)' },
+      '0,14': { to: 'zone4', spawn: { x: 28, y: 14 }, facing: 'left', label: 'West path (lower)' },
       // bottom row: left path (x 2-4), stairs (x 5-24) and right path (x 25-27) lead down to zone 1.
       // The stairs and the stairs exits in zone 1 are generated below.
     },
+  },
+};
+
+// Zone 4 sits to the upper left. r = row 2 exit, L = row 14 exit (they match zone 3's west exits).
+ZONES.zone4 = {
+  name: 'Garden Zone',
+  spawn: { x: 2, y: 16 },
+  rows: [
+    "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
+    "RppppppppppppppppppppppppppppR",
+    "RppppppppppppppppppppppppppppX",
+    "RppCCCCCCpbbbbbbbbbbbbbbbbbbbR",
+    "RppCTTTTCpbbbbbbbbbbbbbbbbbbbR",
+    "RppCCCCCCpbbbbbbbbbbbbbbbbbbbR",
+    "RppppppppppppppppppppppppppppR",
+    "RpbbbbbbbbbbbbbbbbbbbbbbbbbbpR",
+    "RpbbbbbbbbbbbbbbbbbbbbbbbbbbpR",
+    "RpppppppppppppppppppppppppbbpR",
+    "RppCCCCCCpbbbbbbbbbbbbbbbpbbpR",
+    "RppCTTTTCpbbbbbbbbbbbbbbbpbbpR",
+    "RppCCCCCCpbbbbbbbbbbbbbbbpbbpR",
+    "RpppppppppppppppppppppppppbbpR",
+    "RpppbbbbbpbbbbbbbbbbbbbbbbbbpX",
+    "RpppbbbbbpbbbbbbbbbbbbbbbbbbpR",
+    "RpppbbbbbppppppppppppppppppppR",
+    "##XX##########################",
+  ],
+  exits: {
+    '29,2':  { to: 'zone3', spawn: { x: 1, y: 5 },  facing: 'right', label: 'r path' },
+    '29,14': { to: 'zone3', spawn: { x: 1, y: 14 }, facing: 'right', label: 'L path' },
+    '2,17':  { to: 'zone2', spawn: { x: 2, y: 1 },  facing: 'down',  label: 'Down to the pool' },
+    '3,17':  { to: 'zone2', spawn: { x: 3, y: 1 },  facing: 'down',  label: 'Down to the pool' },
   },
 };
 
