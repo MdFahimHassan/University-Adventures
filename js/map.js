@@ -43,7 +43,7 @@ export function getTile(tx, ty) {
   if (tx < 0 || ty < 0 || tx >= cols || ty >= rows) return '#'; // outside = wall
   return grid[ty][tx];
 }
-export const isSolid = (tx, ty) => '#RLDvEFB~MG'.includes(getTile(tx, ty));
+export const isSolid = (tx, ty) => '#RLDvEFB~MGK'.includes(getTile(tx, ty));
 
 // Exit info for a tile of the current zone (or null)
 export const getExit = (tx, ty) => ZONES[zoneId].exits?.[tx + ',' + ty] ?? null;
@@ -51,7 +51,6 @@ export const getExit = (tx, ty) => ZONES[zoneId].exits?.[tx + ',' + ty] ?? null;
 export function getExitHint(tx, ty) {
   const e = getExit(tx, ty);
   if (e && !e.to) return e.label + ' - leads to another zone (coming soon)';
-  if (getTile(tx, ty) === 'S') return 'Stairs - lead up to the lawn (coming soon)';
   return null;
 }
 

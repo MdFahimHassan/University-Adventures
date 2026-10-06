@@ -24,7 +24,8 @@ const COLORS = {
   'E': '#5c5c66', 'F': '#5c5c66',       // escalators (animated in drawEscalator)
   'v': '#030305',                       // escalator well = black void (the floor below)
   'X': '#a9a28e', 'U': '#a9a28e',       // exit paths (arrow drawn on top)
-  'B': '#d9dde0',                       // pool rim
+  'B': '#d9dde0',                       // pool rim / lawn border
+  'K': '#4f4f5a',                       // storage room block (solid)
   'M': '#5b5b66', 'G': '#5b5b66',       // restroom doors (wall colour, door drawn on top)
 };
 
@@ -52,7 +53,7 @@ function drawTile(ch, px, py, tx, ty, time) {
     ctx.fillStyle = 'rgba(0,0,0,0.12)';
     ctx.fillRect(px, py, TILE, 1); ctx.fillRect(px, py, 1, TILE);
     if ((tx + ty) % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(px, py, TILE, TILE); }
-    if (ch !== 'p') drawArrow(ch === 'U' ? '\u2191' : (tx === 0 ? '\u2190' : '\u2192'), px, py);   // X on the west edge points left, on the east edge points right
+    if (ch !== 'p') drawArrow(ch === 'U' ? '\u2191' : (tx === 0 ? '\u2190' : (ty === rows - 1 ? '\u2193' : '\u2192')), px, py);   // X: west edge = left, bottom edge = down, otherwise right
   } else if (ch === 'R') {                            // railing: two rails + posts
     ctx.fillStyle = '#6e6c66';
     ctx.fillRect(px, py + 8, TILE, 3); ctx.fillRect(px, py + 18, TILE, 3);
@@ -64,6 +65,14 @@ function drawTile(ch, px, py, tx, ty, time) {
     ctx.fillStyle = ch === 'M' ? '#2f6fb5' : '#c2548c'; ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 3);
     ctx.strokeStyle = '#1b1b22'; ctx.lineWidth = 1; ctx.strokeRect(px + 3.5, py + 3.5, TILE - 7, TILE - 4);
     ctx.font = 'bold 15px monospace'; ctx.fillStyle = '#fff'; ctx.fillText(ch === 'M' ? 'M' : 'W', px + 11, py + 22);
+  } else if (ch === 'g') {                            // grass: a few darker tufts
+    if ((tx * 7 + ty * 13) % 4 === 0) {
+      ctx.fillStyle = 'rgba(0,0,0,0.10)';
+      ctx.fillRect(px + 6 + (tx % 3) * 5, py + 8, 2, 4); ctx.fillRect(px + 20 - (ty % 3) * 4, py + 20, 2, 4);
+    }
+  } else if (ch === 'K') {                            // storage room block: roof edge on top, shadow below
+    ctx.fillStyle = '#6a6a76'; ctx.fillRect(px, py, TILE, 3);
+    ctx.fillStyle = '#3b3b45'; ctx.fillRect(px, py + TILE - 6, TILE, 6);
   } else if (ch === 'S') {                            // stairs: horizontal steps
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     for (let i = 0; i < 4; i++) ctx.fillRect(px, py + i * 8 + 6, TILE, 2);
