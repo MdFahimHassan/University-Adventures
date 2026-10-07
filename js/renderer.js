@@ -5,6 +5,7 @@ import { quest } from './quest.js';
 import { dialogue } from './dialogue.js';
 import { intro, escalator } from './intro.js';
 import { drawCharacter } from './sprites.js';
+import { drawGlassFront, drawGlassTops } from './glass.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -28,6 +29,7 @@ const COLORS = {
   'K': '#4f4f5a',                       // storage room block (solid)
   'C': '#c9b583', 'T': '#6b5a3a', 'b': '#4a9a4a',   // bench, tree (on soil), bush
   'M': '#5b5b66', 'G': '#5b5b66',       // restroom doors (wall colour, door drawn on top)
+  'W': '#2f3b43',                       // glass skylight: the dark floor you see through it (drawn in drawGlass)
 };
 
 function updateCamera(player) {
@@ -102,6 +104,8 @@ function drawTile(ch, px, py, tx, ty, time) {
     ctx.fillStyle = '#e0b04a'; ctx.fillRect(px + 22, py + 16, 4, 4);
   } else if (ch === 'E' || ch === 'F') {
     drawEscalator(ch, px, py, tx, ty, time);
+  } else if (ch === 'W') {
+    drawGlassFront(ctx, px, py, tx, ty);
   }
 }
 
@@ -127,6 +131,7 @@ export function render(game, time) {
   for (let ty = y0; ty <= y1; ty++)
     for (let tx = x0; tx <= x1; tx++)
       drawTile(getTile(tx, ty), tx * TILE, ty * TILE, tx, ty, time);
+  drawGlassTops(ctx, time, camera, VW, VH);          // glass skylight + the students seen through it (after tiles, before characters)
 
   // Item (ID card): small white card with a bobbing motion
   for (const it of items) {

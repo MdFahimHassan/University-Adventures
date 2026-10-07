@@ -43,7 +43,7 @@ export function getTile(tx, ty) {
   if (tx < 0 || ty < 0 || tx >= cols || ty >= rows) return '#'; // outside = wall
   return grid[ty][tx];
 }
-export const isSolid = (tx, ty) => '#RLDvEFB~MGKCT'.includes(getTile(tx, ty));
+export const isSolid = (tx, ty) => '#RLDvEFB~MGKCTW'.includes(getTile(tx, ty));
 
 // Exit info for a tile of the current zone (or null)
 export const getExit = (tx, ty) => ZONES[zoneId].exits?.[tx + ',' + ty] ?? null;

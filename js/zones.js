@@ -5,6 +5,7 @@
 //   #  wall (solid)        R  railing (solid)      .  open floor        p  path (walkable)
 //   X  exit path           U  "up" path            S  stairs            D  store room door (solid)
 //   L  lift (solid)        E/F escalators (solid, animated)             v  escalator well (solid)
+//   W  raised glass skylight (solid, see-through to the floor below)
 // New in zone 4:
 //   C  stone bench (solid)   T  small tree (solid)   b  bush (WALKABLE - you can walk into it)
 // New in zone 3:
@@ -22,18 +23,18 @@ export const ZONES = {
     "#..USSSSSSSSSSSS.U#DD########R",
     "#..pSppppppppppS.ppppp.......R",
     "#..ppppppppppppppppppppppppp.R",
-    "#......pp...............pp...R",
-    "#......pp...............pp...R",
-    "Xpppppppp...............pp...R",
-    "#..ppppppppppppppppppppppppp.R",
-    "#LLppppppRRRRRRRRRRRRRRRpp...R",
-    "#......pp...PEEEEEvvvvvRpp...R",
-    "#.....NppRRRRvvvvvvvvvvRpp...R",
-    "#......pp....FFFFFvvvvvRpp...R",
-    "#LLppppppRRRRRRRRRRRRRRRpp...R",
-    "#..ppppppppppppppppppppppppp.R",
-    "Xpppppp......................R",
-    "#............................R",
+    "#......pp............WWWWWW..R",
+    "#......pp............WWWWWW..R",
+    "Xpppppppp............WWWWWW..R",
+    "#..ppppppppppppppppppWWWWWW..R",
+    "#LLppppppRRRRRRRRRR..WWWWWW..R",
+    "#......pp.PEEEEEvvR..WWWWWW..R",
+    "#.....NppRRvvvvvvvR..WWWWWW..R",
+    "#......pp..FFFFFvvR..WWWWWW..R",
+    "#LLppppppRRRRRRRRRR..WWWWWW..R",
+    "#..ppppppppppppppppppWWWWWW..R",
+    "Xpppppp..............WWWWWW..R",
+    "#....................WWWWWW..R",
     "#.........................I..R",
     "#............................R",
     "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
