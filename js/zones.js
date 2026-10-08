@@ -8,6 +8,7 @@
 //   W  raised glass skylight (solid, see-through to the floor below)
 // New in zone 4:
 //   C  stone bench (solid)   T  small tree (solid)   b  bush (WALKABLE - you can walk into it)
+//   H  dense hedge (SOLID - a bush you can NOT walk through; used for the hedge lanes in zone 1)
 // New in zone 3:
 //   g  grass (walkable lawn)   K  storage room block (solid)   S on the bottom row = stairs down to zone 1
 // New in zone 2:
@@ -17,49 +18,53 @@
 //   to      = zone to fade into        spawn  = tile where the player appears there (NOT an exit tile!)
 //   facing  = direction the player looks on arrival     label = text shown for exits that don't lead anywhere yet
 export const ZONES = {
-  // Zone 1 is 38 tiles wide and 30 tall. Right side (x 29-37):
-  //   - top row: railing (x 22-37) next to the small storage room (x 18-21, doors at x 19-20)
+  // Zone 1 is 38 tiles wide and 30 tall.
+  //   - rows 9-20 (middle): the glass skylight (x 21-26) and the fenced bush bed (x 29-37) have the same height,
+  //     so they sit side by side in the vertical middle of the map
+  //   - rows 13-17 (left): escalator + lifts + the student. Exits to the pool zone are at x 0, rows 11 and 19
+  //   - x 7-8: a stone path runs from the top paths down to the escalator landing
   //   - x 27-28: 2-tile walkway that runs the full height, between the glass and the right section
-  //   - top sitting corner (rows 1-7) and bottom sitting corner (rows 22-28): bench ring C around two trees T
-  //   - rows 8-21 (x 29-37): fenced bush + trees bed (railing on 3 sides, plain wall on the right)
-  //   - rows 15-28 on the left: the big open south area (the lost ID card lives here)
+  //   - top sitting area (rows 1-7) and bottom sitting area (rows 22-28): a bench ring C around two trees T,
+  //     walled off on the left by a 2-wide, 5-row hedge lane H. You enter through the 2-row gap (path p)
+  //     between the hedge lane and the bush bed's railing (top: rows 6-7, bottom: rows 22-23)
+  //   - rows 21-28 on the left: the big open south area (the lost ID card lives here, at x 16, row 24)
   zone1: {
     name: 'Rooftop Entry',
     rows: [
     "#..USSSSSSSSSSSS.U#DD#RRRRRRRRRRRRRRRR",
-    "#..pSppppppppppS.ppppp...............R",
-    "#..ppppppppppppppppppppppppp.....CCC.R",
-    "#......pp............WWWWWW......CTC.R",
-    "#......pp............WWWWWW......CTC.R",
-    "Xpppppppp............WWWWWW......CCC.R",
-    "#..ppppppppppppppppppWWWWWW..........R",
-    "#LLppppppRRRRRRRRRR..WWWWWW..........R",
-    "#......pp.PEEEEEvvR..WWWWWW..RRRRRRRRR",
+    "#..pSppppppppppS.ppppp.......HH......R",
+    "#..ppppppppppppppppppppppppp.HH..CCC.R",
+    "#......pp....................HH..CTC.R",
+    "#......pp....................HH..CTC.R",
+    "#......pp....................HH..CCC.R",
+    "#......pp....................ppp.....R",
+    "#......pp....................ppp.....R",
+    "#......pp....................RRRRRRRRR",
+    "#......pp............WWWWWW..Rbbbbbbb#",
+    "#......pp............WWWWWW..RbbTbbTb#",
+    "Xpppppppp............WWWWWW..Rbbbbbbb#",
+    "#..ppppppppppppppppppWWWWWW..Rbbbbbbb#",
+    "#LLppppppRRRRRRRRRR..WWWWWW..RbbbTbbb#",
+    "#......pp.PEEEEEvvR..WWWWWW..Rbbbbbbb#",
     "#.....NppRRvvvvvvvR..WWWWWW..Rbbbbbbb#",
-    "#......pp..FFFFFvvR..WWWWWW..RbbTbbTb#",
+    "#......pp..FFFFFvvR..WWWWWW..RbTbbbTb#",
     "#LLppppppRRRRRRRRRR..WWWWWW..Rbbbbbbb#",
     "#..ppppppppppppppppppWWWWWW..Rbbbbbbb#",
     "Xpppppp..............WWWWWW..RbbbTbbb#",
     "#....................WWWWWW..Rbbbbbbb#",
-    "#.........................I..Rbbbbbbb#",
-    "#............................RbTbbbTb#",
-    "#............................Rbbbbbbb#",
-    "#............................Rbbbbbbb#",
-    "#............................RbbbTbbb#",
-    "#............................Rbbbbbbb#",
     "#............................RRRRRRRRR",
-    "#....................................R",
-    "#....................................R",
-    "#................................CCC.R",
-    "#................................CTC.R",
-    "#................................CTC.R",
-    "#................................CCC.R",
-    "#....................................R",
+    "#............................ppp.....R",
+    "#............................ppp.....R",
+    "#...............I............HH..CCC.R",
+    "#............................HH..CTC.R",
+    "#............................HH..CTC.R",
+    "#............................HH..CCC.R",
+    "#............................HH......R",
     "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
     ],
     exits: {
-      '0,5':  { to: 'zone2', spawn: { x: 28, y: 4 },  facing: 'left', label: 'Right path' },
-      '0,13': { to: 'zone2', spawn: { x: 28, y: 13 }, facing: 'left', label: 'Left path' },
+      '0,11': { to: 'zone2', spawn: { x: 28, y: 4 },  facing: 'left', label: 'Right path' },
+      '0,19': { to: 'zone2', spawn: { x: 28, y: 13 }, facing: 'left', label: 'Left path' },
       '3,0':  { to: 'zone3', spawn: { x: 2, y: 16 },  facing: 'up', label: 'Up path (left)' },
       '17,0': { to: 'zone3', spawn: { x: 27, y: 16 }, facing: 'up', label: 'Up path (right)' },
     },
@@ -89,8 +94,8 @@ export const ZONES = {
     "######################GG######",
     ],
     exits: {
-      '29,4':  { to: 'zone1', spawn: { x: 1, y: 5 },  facing: 'right', label: 'Right path' },
-      '29,13': { to: 'zone1', spawn: { x: 1, y: 13 }, facing: 'right', label: 'Left path' },
+      '29,4':  { to: 'zone1', spawn: { x: 1, y: 11 }, facing: 'right', label: 'Right path' },
+      '29,13': { to: 'zone1', spawn: { x: 1, y: 19 }, facing: 'right', label: 'Left path' },
       '2,0':   { to: 'zone4', spawn: { x: 2, y: 16 }, facing: 'up', label: 'Upper zone' },
     },
   },

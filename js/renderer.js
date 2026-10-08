@@ -28,6 +28,7 @@ const COLORS = {
   'B': '#d9dde0',                       // pool rim / lawn border
   'K': '#4f4f5a',                       // storage room block (solid)
   'C': '#c9b583', 'T': '#6b5a3a', 'b': '#4a9a4a',   // bench, tree (on soil), bush
+  'H': '#1f5a28',                       // solid hedge (leaf blobs drawn on top in drawHedge)
   'M': '#5b5b66', 'G': '#5b5b66',       // restroom doors (wall colour, door drawn on top)
   'W': '#2f3b43',                       // glass skylight: the dark floor you see through it (drawn in drawGlass)
 };
@@ -45,6 +46,32 @@ function drawBlobs(px, py, a) {                       // two leafy bush blobs (a
   ctx.fillStyle = '#388e3c'; ctx.beginPath(); ctx.ellipse(px + 22, py + 14, 8, 8.5, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#66bb6a'; ctx.fillRect(px + 12, py + 9, 5, 3);
   ctx.globalAlpha = 1;
+}
+
+// Solid hedge: a dense wall of leaves. Leaf positions come from tx/ty (no random flicker), and the
+// light top edge / dark bottom edge only appear where the hedge ENDS, so a block of H tiles reads as one big hedge.
+function drawHedge(px, py, tx, ty) {
+  const isH = (x, y) => getTile(x, y) === 'H';
+  ctx.save();
+  ctx.beginPath(); ctx.rect(px, py, TILE, TILE); ctx.clip();       // leaves never spill onto neighbour tiles
+  const shades = ['#2e7d32', '#388e3c', '#2a7030', '#43a047'];
+  for (let i = 0; i < 9; i++) {                                   // 3x3 grid of overlapping leaf blobs
+    const gx = i % 3, gy = Math.floor(i / 3);
+    const h = Math.abs(Math.sin((tx * 3 + gx) * 12.9898 + (ty * 3 + gy) * 78.233) * 43758.5453) % 1;
+    ctx.fillStyle = shades[Math.floor(h * shades.length)];
+    ctx.beginPath(); ctx.arc(px + gx * 11 + 5 + (h - 0.5) * 4, py + gy * 11 + 5 + (h * 7 % 1 - 0.5) * 4, 8, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = '#7bc47f';                                       // a few bright leaf highlights
+  for (let i = 0; i < 4; i++) {
+    const h = Math.abs(Math.sin((tx * 5 + i) * 39.346 + (ty * 7 + i) * 11.135) * 43758.5453) % 1;
+    const h2 = Math.abs(Math.sin((tx * 5 + i) * 17.17 + (ty * 7 + i) * 91.7) * 12345.678) % 1;
+    ctx.fillRect(px + 3 + Math.floor(h * 24), py + 3 + Math.floor(h2 * 22), 3, 2);
+  }
+  ctx.fillStyle = '#143d1a';                                       // deep gaps between the leaves
+  ctx.fillRect(px + 7, py + 14, 3, 2); ctx.fillRect(px + 20, py + 8, 3, 2); ctx.fillRect(px + 14, py + 24, 3, 2);
+  if (!isH(tx, ty - 1)) { ctx.fillStyle = 'rgba(190,240,170,0.28)'; ctx.fillRect(px, py, TILE, 4); }              // lit top edge
+  if (!isH(tx, ty + 1)) { ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fillRect(px, py + TILE - 6, TILE, 6); }          // shaded base
+  ctx.restore();
 }
 
 function drawTile(ch, px, py, tx, ty, time) {
@@ -90,6 +117,8 @@ function drawTile(ch, px, py, tx, ty, time) {
     ctx.fillStyle = '#5d4037'; ctx.fillRect(px + 14, py + 14, 5, 5);
   } else if (ch === 'b') {                            // bush (walkable)
     drawBlobs(px, py, 1);
+  } else if (ch === 'H') {                            // solid hedge: dense leaves, you cannot walk through it
+    drawHedge(px, py, tx, ty);
   } else if (ch === 'K') {                            // storage room block: roof edge on top, shadow below
     ctx.fillStyle = '#6a6a76'; ctx.fillRect(px, py, TILE, 3);
     ctx.fillStyle = '#3b3b45'; ctx.fillRect(px, py + TILE - 6, TILE, 6);
