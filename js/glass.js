@@ -1,11 +1,16 @@
-// glass.js - the raised glass skylight ('W' tiles) and the little students walking on the floor BELOW it.
+// glass.js - the raised glass skylight ('W' tiles) and the little people on the floor BELOW it.
 //
 // Drawing order for the glass (all inside a clip that only covers the glass tops):
 //   1. the lower floor            (small tiles = it is far away)
-//   2. students walking on it     (drawn small = far away, and they shift a bit when the camera moves = parallax)
+//   2. people on it               (drawn small = far away, and they shift a bit when the camera moves = parallax)
 //   3. a depth dimmer             (the floor below is in the shade)
 //   4. the glass itself           (tint, sky reflection, glints, water drops, seams, metal frame)
 // So it reads as a sheet of real glass, not as a hole.
+//
+// The crowd below has three kinds of people:
+//   - wanderers      walk to random spots, pause, pick a new spot
+//   - phone-checkers stand still looking at a phone (and sometimes put it away and wander off)
+//   - gossip circles 3-5 people standing in a loose circle, facing each other (circles break up and re-form)
 //
 // Every block of 'W' tiles in a zone becomes one platform. The bottom row of a block shows a louvered front.
 import { TILE, getTile, zoneId, cols, rows } from './map.js';
@@ -18,9 +23,14 @@ export const SIDE_W = 10;               // width (px) of the louvered LEFT face 
 const STUDENT_SCALE = 0.32;             // size of people below (the player is 0.75) -> bigger = closer floor
 const FLOOR_TILE = 13;                  // lower-floor tile size in px (the roof floor is 32) -> smaller = deeper
 const PARALLAX = 0.30;                  // 0 = floor below is glued to the roof, higher = more depth when you move
-const STUDENT_COUNT = 34;               // how many people walk around down there
+const STUDENT_COUNT = 34;               // how many people are down there in total
 const DIM = 0.16;                       // how dark the floor below is (0-1)
 const GLASS_TINT = 0.18;                // how strongly the glass tints what's below (0-1)
+// crowd mix
+const PHONE_COUNT = Math.round(STUDENT_COUNT * 0.30);   // ~30% stand on their phone (changes over time)
+const GROUP_SIZES = [5, 4, 3];                           // starting gossip circles (~35% of the crowd)
+const GROUP_TARGET = GROUP_SIZES.length;                 // when a circle breaks up, a new one forms
+const PERSONAL = 11;                                     // px: walkers steer away from anyone closer than this
 // -------------------------------------------------------------------------------------------
 
 const fract = (v) => v - Math.floor(v);
@@ -57,43 +67,206 @@ function makeFloorPattern(ctx) {
   return ctx.createPattern(c, 'repeat');
 }
 
-// ---- the students (positions are RELATIVE to the glass centre, so they work wherever you put the glass) ----
-// Each student walks along a straight lane across the whole glass (plus a margin for the parallax), and some stop
-// for a few seconds on the way. Pairs walk together. Lanes are scaled to the size of the glass automatically.
-const students = [];
-(function makeStudents() {
-  let k = 0;
-  const rnd = () => hash(k++, 7.7);
-  for (let i = 0; i < STUDENT_COUNT; i++) {
-    const s = {
-      horizontal: i % 2 === 0,
-      laneN: rnd() * 2 - 1,                                          // -1..1 across the glass
-      laneOff: 0,
-      dir: rnd() < 0.5 ? -1 : 1,
-      speed: 30 + rnd() * 22,                                        // px/s in "below" space
-      variant: Math.floor(rnd() * VARIANT_COUNT),
-      phase: i * 2.1 + rnd() * 1.5,                                  // spread start times so the glass is never empty
-      pauseAt: 0.3 + rnd() * 0.4,                                    // where on the lane he stops (fraction)
-      pauseDur: rnd() < 0.5 ? 1.5 + rnd() * 3 : 0,                   // 0 = never stops
-    };
-    students.push(s);
-    if (i % 5 === 1) {                                               // a friend walking right behind him
-      students.push({ ...s, laneOff: 9, phase: s.phase - 0.45, variant: (s.variant + 3) % VARIANT_COUNT });
+// ---- the crowd: wanderers, phone-checkers and gossip circles ----------------------------
+// Positions are RELATIVE to the glass centre ("below" space), so they work wherever you put the glass.
+const TAU = Math.PI * 2;
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+let people = [], groups = [], world = null, formT = 0;
+let crowdZone = null, lastTime = null;
+
+function newPerson(mode) {
+  return {
+    x: 0, y: 0, vx: 0, vy: 0, mode,                       // mode: 'walk' | 'phone' | 'group' | 'join'
+    variant: Math.floor(Math.random() * VARIANT_COUNT),
+    facing: 'down', moving: false, t: rand(0, 5),
+    speed: rand(26, 46), phase: rand(0, TAU),
+    tx: null, ty: null, wait: 0, travel: 0,               // walking target / pause / time spent on this trip
+    group: null, slot: null, look: null, lookTimer: rand(0, 3),
+    phoneTimer: 0, glance: 0, nextGlance: rand(3, 8), bob: 0, nextBob: rand(2, 6),
+  };
+}
+
+// A random spot on the lower floor that is not too close to anyone standing still.
+function freeSpot(minDist, margin = 8) {
+  let best = null, bestD = -1;
+  for (let i = 0; i < 14; i++) {
+    const x = rand(-world.hx + margin, world.hx - margin), y = rand(-world.hy + margin, world.hy - margin);
+    let d = Infinity;
+    for (const o of people) if (o.mode !== 'walk') d = Math.min(d, Math.hypot(o.x - x, o.y - y));
+    if (d >= minDist) return { x, y };
+    if (d > bestD) { bestD = d; best = { x, y }; }
+  }
+  return best;
+}
+
+function faceToward(p, x, y) {
+  const dx = x - p.x, dy = y - p.y;
+  p.facing = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+}
+
+// Give a set of people their place in a loose circle around (cx, cy).
+function setupGroup(members, cx, cy) {
+  const g = { cx, cy, members, life: rand(25, 55), speaker: 0, speakT: rand(2, 4) };
+  const k = members.length, base = rand(0, TAU);
+  members.forEach((m, i) => {
+    const a = base + (i * TAU) / k + rand(-0.25, 0.25);        // uneven spacing = organic circle
+    const r = 9 + k * 1.6 + rand(-2, 2);
+    m.group = g; m.slot = { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r };
+    m.look = members[0]; m.lookTimer = rand(0, 3);
+  });
+  groups.push(g);
+  return g;
+}
+
+// New circle: the walkers nearest to a free spot walk over and join it.
+function formGroup() {
+  const walkers = people.filter((p) => p.mode === 'walk');
+  const k = Math.min(walkers.length, 3 + Math.floor(Math.random() * 3));
+  if (k < 3) return;
+  const c = freeSpot(46, 24);
+  walkers.sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y));
+  const members = walkers.slice(0, k);
+  setupGroup(members, c.x, c.y);
+  for (const m of members) { m.mode = 'join'; m.tx = m.slot.x; m.ty = m.slot.y; m.travel = 0; m.wait = 0; }
+}
+
+function disperse(g) {
+  groups = groups.filter((x) => x !== g);
+  for (const m of g.members) {                                 // everyone wanders off in their own direction
+    m.mode = 'walk'; m.group = null; m.slot = null;
+    m.tx = null; m.wait = rand(0, 1.5);
+  }
+}
+
+function buildCrowd() {
+  people = []; groups = []; formT = rand(4, 8);
+  world = { hx: bbox.w / 2 + 60, hy: bbox.h / 2 + 60 };       // area people can roam (a margin covers the parallax shift)
+
+  for (const size of GROUP_SIZES) {                            // 1) gossip circles
+    const c = freeSpot(46, 24);
+    const members = Array.from({ length: size }, () => newPerson('group'));
+    setupGroup(members, c.x, c.y);
+    for (const m of members) { m.x = m.slot.x; m.y = m.slot.y; people.push(m); }
+  }
+  for (let i = 0; i < PHONE_COUNT; i++) {                      // 2) phone-checkers
+    const p = newPerson('phone'), s = freeSpot(18);
+    p.x = s.x; p.y = s.y; p.phoneTimer = rand(8, 35);
+    people.push(p);
+  }
+  while (people.length < STUDENT_COUNT) {                      // 3) wanderers (the rest)
+    const p = newPerson('walk'), s = freeSpot(14);
+    p.x = s.x; p.y = s.y; p.wait = rand(0, 3);
+    people.push(p);
+  }
+}
+
+// Walk one step toward (tx, ty), steering around other people. Returns true when arrived.
+function steer(p, dt, tx, ty, arriveR) {
+  const dx = tx - p.x, dy = ty - p.y, dist = Math.hypot(dx, dy);
+  if (dist < arriveR) { p.moving = false; return true; }
+  let ax = dx / dist, ay = dy / dist;
+  for (const o of people) {                                    // gentle push away from anyone too close
+    if (o === p || (p.group && o.group === p.group)) continue;
+    const ex = p.x - o.x, ey = p.y - o.y, d = Math.hypot(ex, ey);
+    if (d > 0 && d < PERSONAL) { const w = ((PERSONAL - d) / PERSONAL) * 1.8; ax += (ex / d) * w; ay += (ey / d) * w; }
+  }
+  const len = Math.hypot(ax, ay) || 1;
+  const sp = p.speed * (dist < 20 ? 0.5 + dist / 40 : 1);     // slow down when close to the goal
+  p.vx = (ax / len) * sp; p.vy = (ay / len) * sp;
+  p.x = Math.max(-world.hx, Math.min(world.hx, p.x + p.vx * dt));
+  p.y = Math.max(-world.hy, Math.min(world.hy, p.y + p.vy * dt));
+  p.moving = true; p.t += dt;
+  const avx = Math.abs(p.vx), avy = Math.abs(p.vy);           // keep the old facing when nearly diagonal (no flicker)
+  if (avx > avy * 1.25) p.facing = p.vx < 0 ? 'left' : 'right';
+  else if (avy > avx * 1.25) p.facing = p.vy < 0 ? 'up' : 'down';
+  return false;
+}
+
+function updatePerson(p, dt) {
+  p.moving = false;                                            // steer() sets it back to true while walking
+  switch (p.mode) {
+    case 'walk': {
+      if (p.wait > 0) { p.wait -= dt; return; }                // standing around for a bit
+      if (p.tx == null) { const s = freeSpot(18); p.tx = s.x; p.ty = s.y; p.travel = 0; }
+      p.travel += dt;
+      if (steer(p, dt, p.tx, p.ty, 4) || p.travel > 25) {      // arrived (or gave up on a blocked trip)
+        p.tx = null;
+        const phones = people.filter((q) => q.mode === 'phone').length;
+        const chance = phones < PHONE_COUNT - 3 ? 0.6 : phones < PHONE_COUNT + 3 ? 0.3 : 0;
+        if (Math.random() < chance) {                          // stop and check the phone
+          p.mode = 'phone'; p.phoneTimer = rand(12, 35); p.facing = 'down';
+          p.glance = 0; p.nextGlance = rand(3, 8); p.bob = 0; p.nextBob = rand(2, 6);
+        } else p.wait = rand(0, 5);                            // just pause, then pick a new spot
+      }
+      return;
+    }
+    case 'phone': {
+      p.phoneTimer -= dt;
+      if (p.glance > 0) {                                      // looking away from the phone for a moment
+        p.glance -= dt;
+        if (p.glance <= 0) { p.facing = 'down'; p.nextGlance = rand(4, 10); }
+      } else {
+        p.nextGlance -= dt;
+        if (p.nextGlance <= 0) { p.glance = rand(0.8, 1.6); p.facing = Math.random() < 0.5 ? 'left' : 'right'; }
+      }
+      if (p.bob > 0) p.bob -= dt;                              // little weight shift
+      else { p.nextBob -= dt; if (p.nextBob <= 0) { p.bob = 0.35; p.nextBob = rand(3, 8); } }
+      if (p.phoneTimer <= 0) { p.mode = 'walk'; p.wait = 0; p.tx = null; }   // phone away, walk off
+      return;
+    }
+    case 'join': {
+      p.travel += dt;
+      if (steer(p, dt, p.tx, p.ty, 3) || p.travel > 30) { p.x = p.slot.x; p.y = p.slot.y; p.mode = 'group'; p.moving = false; }
+      return;
+    }
+    case 'group': {
+      const g = p.group;
+      p.lookTimer -= dt;
+      if (p.lookTimer <= 0) {                                  // turn to look at whoever is talking (or someone else)
+        p.lookTimer = rand(2, 5);
+        p.look = Math.random() < 0.65 ? g.members[g.speaker] : pick(g.members);
+      }
+      const t = p.look && p.look !== p && g.members.includes(p.look) ? p.look : { x: g.cx, y: g.cy };
+      faceToward(p, t.x, t.y);
+      return;
     }
   }
-})();
+}
 
-// position of a student at `time`: { along, moving, t }   (t = seconds spent walking, drives the walk cycle)
-function studentState(s, time, half) {
-  const walkTime = (half * 2) / s.speed;
-  const cycle = walkTime + s.pauseDur;
-  const tt = (((time + s.phase) % cycle) + cycle) % cycle;
-  const tA = s.pauseAt * walkTime;
-  let d, moving = true, walked;
-  if (tt < tA) { d = tt * s.speed; walked = tt; }
-  else if (tt < tA + s.pauseDur) { d = tA * s.speed; moving = false; walked = tA; }
-  else { d = (tt - s.pauseDur) * s.speed; walked = tt - s.pauseDur; }
-  return { along: s.dir > 0 ? -half + d : half - d, moving, t: walked };
+function stepCrowd(dt) {
+  for (const g of groups.slice()) {
+    g.speakT -= dt;
+    if (g.speakT <= 0) { g.speaker = Math.floor(Math.random() * g.members.length); g.speakT = rand(2, 4.5); }
+    g.life -= dt;
+    if (g.life <= 0) disperse(g);
+  }
+  for (const p of people) updatePerson(p, dt);
+  if (groups.length < GROUP_TARGET) {
+    formT -= dt;
+    if (formT <= 0) { formGroup(); formT = rand(4, 10); }
+  }
+}
+
+// vertical offset in px: phone-checkers shift their weight, whoever is talking bobs a little
+function bobOffset(p, time) {
+  if (p.mode === 'phone') return p.bob > 0 ? -1 : 0;
+  if (p.mode === 'group' && p.group.members[p.group.speaker] === p) {
+    return Math.sin(time * 2.3 + p.phase) > -0.2 ? -Math.max(0, Math.sin(time * 12 + p.phase)) * 0.8 : 0;
+  }
+  return 0;
+}
+
+// tiny phone in the hand + a faint flickering screen glow (the sheet has no "holding a phone" frames)
+function drawPhone(ctx, p, x, y, time) {
+  if (p.facing === 'up') return;                               // back is turned: phone isn't visible
+  const side = p.facing === 'left' ? -6 : p.facing === 'right' ? 4 : -1.5;
+  const phx = Math.round(x + side), phy = Math.round(y - 9);
+  const flick = 0.5 + 0.5 * Math.sin(time * 7 + p.phase) * Math.sin(time * 2.3 + p.phase);
+  ctx.fillStyle = `rgba(150,215,255,${0.10 + 0.10 * flick})`;
+  ctx.beginPath(); ctx.arc(phx + 1.5, phy + 2, 4.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#dff3ff'; ctx.fillRect(phx, phy, 3, 4);
 }
 
 // ---- the metal faces of the box (called by the normal tile loop) ----
@@ -133,6 +306,12 @@ export function drawGlassTops(ctx, time, camera, VW, VH) {
   if (bbox.x > camera.x + VW || bbox.x + bbox.w < camera.x || bbox.y > camera.y + VH || bbox.y + bbox.h < camera.y) return;
   if (!floorPattern) floorPattern = makeFloorPattern(ctx);
 
+  // run the crowd simulation (rebuilt whenever the zone changes)
+  if (crowdZone !== zoneId) { buildCrowd(); crowdZone = zoneId; lastTime = null; }
+  const dt = lastTime == null ? 0 : Math.min(0.05, Math.max(0, time - lastTime));
+  lastTime = time;
+  stepCrowd(dt);
+
   ctx.save();
   const clip = new Path2D();
   for (const t of glass) clip.rect(t.tx * TILE + t.lx, t.ty * TILE, t.tw, t.top);
@@ -158,21 +337,18 @@ export function drawGlassTops(ctx, time, camera, VW, VH) {
     ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(hx + 2, hy + 2, 22, 2);
   }
 
-  // 2) students (drawn small, sorted so the lower ones are on top)
+  // 2) people (drawn small, sorted so the lower ones are on top)
   ctx.imageSmoothingEnabled = true;                                        // tiny sprites look better smoothed
   const list = [];
-  for (const s of students) {
-    const half = (s.horizontal ? bbox.w : bbox.h) / 2 + 110;                // lane length (covers the glass + margin)
-    const lane = s.laneN * ((s.horizontal ? bbox.h : bbox.w) / 2 + 40) + s.laneOff;
-    const st = studentState(s, time, half);
-    const bx = s.horizontal ? st.along : lane, by = s.horizontal ? lane : st.along;
-    if (Math.abs(bx + px) > bbox.w / 2 + 24 || Math.abs(by + py) > bbox.h / 2 + 24) continue;   // not near the glass
-    list.push({ s, st, bx, by });
+  for (const p of people) {
+    if (Math.abs(p.x + px) > bbox.w / 2 + 24 || Math.abs(p.y + py) > bbox.h / 2 + 24) continue;   // not near the glass
+    list.push(p);
   }
-  list.sort((a, b) => a.by - b.by);
-  for (const { s, st, bx, by } of list) {
-    const facing = s.horizontal ? (s.dir > 0 ? 'right' : 'left') : (s.dir > 0 ? 'down' : 'up');
-    drawStudent(ctx, s.variant, facing, st.moving, st.t, bx, by, STUDENT_SCALE, 12 * (s.speed / 60) * 1.6);
+  list.sort((a, b) => a.y - b.y);
+  for (const p of list) {
+    const off = bobOffset(p, time);
+    drawStudent(ctx, p.variant, p.facing, p.moving, p.t, p.x, p.y + off, STUDENT_SCALE, 0.32 * p.speed);
+    if (p.mode === 'phone') drawPhone(ctx, p, p.x, p.y + off, time);
   }
   ctx.imageSmoothingEnabled = false;
   ctx.restore();

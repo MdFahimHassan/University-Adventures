@@ -17,27 +17,45 @@
 //   to      = zone to fade into        spawn  = tile where the player appears there (NOT an exit tile!)
 //   facing  = direction the player looks on arrival     label = text shown for exits that don't lead anywhere yet
 export const ZONES = {
+  // Zone 1 is 38 tiles wide and 30 tall. Right side (x 29-37):
+  //   - top row: railing (x 22-37) next to the small storage room (x 18-21, doors at x 19-20)
+  //   - x 27-28: 2-tile walkway that runs the full height, between the glass and the right section
+  //   - top sitting corner (rows 1-7) and bottom sitting corner (rows 22-28): bench ring C around two trees T
+  //   - rows 8-21 (x 29-37): fenced bush + trees bed (railing on 3 sides, plain wall on the right)
+  //   - rows 15-28 on the left: the big open south area (the lost ID card lives here)
   zone1: {
     name: 'Rooftop Entry',
     rows: [
-    "#..USSSSSSSSSSSS.U#DD########R",
-    "#..pSppppppppppS.ppppp.......R",
-    "#..ppppppppppppppppppppppppp.R",
-    "#......pp............WWWWWW..R",
-    "#......pp............WWWWWW..R",
-    "Xpppppppp............WWWWWW..R",
-    "#..ppppppppppppppppppWWWWWW..R",
-    "#LLppppppRRRRRRRRRR..WWWWWW..R",
-    "#......pp.PEEEEEvvR..WWWWWW..R",
-    "#.....NppRRvvvvvvvR..WWWWWW..R",
-    "#......pp..FFFFFvvR..WWWWWW..R",
-    "#LLppppppRRRRRRRRRR..WWWWWW..R",
-    "#..ppppppppppppppppppWWWWWW..R",
-    "Xpppppp..............WWWWWW..R",
-    "#....................WWWWWW..R",
-    "#.........................I..R",
-    "#............................R",
-    "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
+    "#..USSSSSSSSSSSS.U#DD#RRRRRRRRRRRRRRRR",
+    "#..pSppppppppppS.ppppp...............R",
+    "#..ppppppppppppppppppppppppp.....CCC.R",
+    "#......pp............WWWWWW......CTC.R",
+    "#......pp............WWWWWW......CTC.R",
+    "Xpppppppp............WWWWWW......CCC.R",
+    "#..ppppppppppppppppppWWWWWW..........R",
+    "#LLppppppRRRRRRRRRR..WWWWWW..........R",
+    "#......pp.PEEEEEvvR..WWWWWW..RRRRRRRRR",
+    "#.....NppRRvvvvvvvR..WWWWWW..Rbbbbbbb#",
+    "#......pp..FFFFFvvR..WWWWWW..RbbTbbTb#",
+    "#LLppppppRRRRRRRRRR..WWWWWW..Rbbbbbbb#",
+    "#..ppppppppppppppppppWWWWWW..Rbbbbbbb#",
+    "Xpppppp..............WWWWWW..RbbbTbbb#",
+    "#....................WWWWWW..Rbbbbbbb#",
+    "#.........................I..Rbbbbbbb#",
+    "#............................RbTbbbTb#",
+    "#............................Rbbbbbbb#",
+    "#............................Rbbbbbbb#",
+    "#............................RbbbTbbb#",
+    "#............................Rbbbbbbb#",
+    "#............................RRRRRRRRR",
+    "#....................................R",
+    "#....................................R",
+    "#................................CCC.R",
+    "#................................CTC.R",
+    "#................................CTC.R",
+    "#................................CCC.R",
+    "#....................................R",
+    "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
     ],
     exits: {
       '0,5':  { to: 'zone2', spawn: { x: 28, y: 4 },  facing: 'left', label: 'Right path' },
