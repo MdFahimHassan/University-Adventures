@@ -221,53 +221,102 @@ function drawRail(px, py, tx, ty) {
   if (v) inFrame([0, 1, 1, 0, px + 6, py], () => railPiece(ty, isRail(tx, ty - 1), isRail(tx, ty + 1), 16, 3, false, seed));
 }
 
-// ---- the rounded nose of the escalator railing (zone 1) ----------------------------------------------------------------
-// Where the two straight rails meet the end rail, they sweep round in one smooth half-ellipse (tiles x 16-18, y 13-17)
-// instead of meeting at a square corner. The black well is clipped to the same curve, with a strip of floor between.
-// It is painted once into an offscreen image and stamped over those tiles every frame.
-// (zones.js: the two corner tiles outside the curve, (18,13) and (18,17), are plain floor.)
-const NOSE = { tx: 16, ty: 13, w: 3, h: 5 };
-const lerpN = (a, b, t) => a + (b - a) * t;
+// ---- the nose of the escalator railing (zone 1) -----------------------------------------------------------------------
+// The two straight rails (rows 13 and 17) run on, then taper in diagonally with a soft S-bend and meet in a narrow rounded
+// tip - a "hat" / bullet shape like the real escalator rail. Painted once into an offscreen image (tiles x 15-18, rows 13-17) and
+// stamped over those tiles every frame. The black void is the same shape pulled in from the rail, so it runs parallel to it.
+// Everything is built from exact curve maths (true tangents, each edge painted as ONE smooth band), so the lines stay clean.
+// TWEAK ME (pixels inside that image, 32px per tile, x 0 = left edge of tile 15, y 0 = top edge of row 13):
+//   HAT_START = where the diagonal begins     HAT_TIP = how far right the tip reaches     TIP_R = how round the tip is
+//   HAT_ANGLE = steepness (degrees) where the diagonal turns into the round tip           HAT_HANDLE = how straight the diagonal is
+//   WELL_IN_TOP / WELL_IN_BOT = distance from each rail's centre-line to the void's edge (they differ by 4 because the two straight
+//   rails are built differently: top 14 -> void edge 32, bottom 142 -> void edge 128)
+const NOSE = { tx: 15, ty: 13, w: 4, h: 5 };
+const HAT_TOP = 14, HAT_BOT = 142, HAT_START = 27, HAT_TIP = 114, TIP_R = 26, HAT_ANGLE = 48, HAT_HANDLE = 10;
+const WELL_X = 32, WELL_TOP = 32, WELL_BOT = 128, WELL_IN_TOP = 18, WELL_IN_BOT = 14;   // the void starts at tile 16 and fills rows 14-16
 let noseImg = null;
 function buildNose() {
   const c = document.createElement('canvas'); c.width = NOSE.w * TILE; c.height = NOSE.h * TILE;
   const g = c.getContext('2d');
-  const cy = 2 * TILE + 15.5, rx = 79.5, ry = 64;               // centre-line of the rail: top rail y, end rail x (tile 18 centre)
-  g.fillStyle = COLORS.v;                                        // the black well, inset from the rail
-  g.beginPath(); g.ellipse(0, cy, 63.5, 48, 0, -Math.PI / 2, Math.PI / 2); g.closePath(); g.fill();
+  const cy = (HAT_TOP + HAT_BOT) / 2, phi = HAT_ANGLE * Math.PI / 180, cx = HAT_TIP - TIP_R;
+  const dirx = Math.cos(phi), diry = Math.sin(phi);
+  const E = [cx + TIP_R * Math.sin(phi), cy - TIP_R * Math.cos(phi)];          // where the diagonal meets the round tip
+  const B = [[HAT_START, HAT_TOP], [HAT_START + 22, HAT_TOP], [E[0] - HAT_HANDLE * dirx, E[1] - HAT_HANDLE * diry], E];
 
-  const N = 800, pts = []; let len = 0;                          // walk along the curve
-  for (let i = 0; i <= N; i++) {
-    const th = -Math.PI / 2 + Math.PI * i / N, x = rx * Math.cos(th), y = cy + ry * Math.sin(th);
-    const tx = -rx * Math.sin(th), ty = ry * Math.cos(th), tl = Math.hypot(tx, ty);
-    if (i) len += Math.hypot(x - pts[i - 1].x, y - pts[i - 1].y);
-    pts.push({ x, y, ang: Math.atan2(ty, tx), m: tx / tl, s: len });   // m: +1 on the top rail, 0 at the tip, -1 on the bottom rail
+  // ---- 1. the rail centre-line with EXACT tangents. top side: straight -> S-bend -> round tip; bottom side = its mirror ----
+  const top = [];
+  const add = (x, y, tx, ty) => top.push({ x, y, tx, ty });
+  for (let x = 0; x < HAT_START; x += 0.25) add(x, HAT_TOP, 1, 0);
+  for (let i = 0; i <= 480; i++) {
+    const t = i / 480, u = 1 - t;
+    const x = u*u*u*B[0][0] + 3*u*u*t*B[1][0] + 3*u*t*t*B[2][0] + t*t*t*B[3][0];
+    const y = u*u*u*B[0][1] + 3*u*u*t*B[1][1] + 3*u*t*t*B[2][1] + t*t*t*B[3][1];
+    const dx = 3 * (u*u*(B[1][0] - B[0][0]) + 2*u*t*(B[2][0] - B[1][0]) + t*t*(B[3][0] - B[2][0]));
+    const dy = 3 * (u*u*(B[1][1] - B[0][1]) + 2*u*t*(B[2][1] - B[1][1]) + t*t*(B[3][1] - B[2][1]));
+    const l = Math.hypot(dx, dy); add(x, y, dx / l, dy / l);
   }
-  const k = Math.max(1, Math.round(len / 8)) * 8 / len;          // stretch so the slats line up with the straight rails at both ends
-  const w = 1.0;
-  for (const p of pts) {
-    const ph = (p.s * k) % 8, t = (p.m + 1) / 2;
-    const ob = lerpN(-6.5, -9.5, t), ib = lerpN(7.5, 4.5, t);   // outer / inner bar (blends from the top-rail layout to the bottom-rail layout)
-    g.save(); g.translate(p.x, p.y); g.rotate(p.ang);            // local x runs along the rail, local y points into the well
-    if (ph >= 2 && ph < 6) {                                     // a slat: lit face on one side, dark edge on the other
-      g.fillStyle = RC.slat; g.fillRect(0, ob + 2, w, ib - ob - 2);
-      if (ph < 3) { g.fillStyle = RC.lit; g.fillRect(0, ob + 2, w, ib - ob - 2); }
-      else if (ph >= 5) { g.fillStyle = RC.dark; g.fillRect(0, ob + 2, w, ib - ob - 2); }
-    }
-    g.fillStyle = RC.bar; g.fillRect(0, ob, w, 2); g.fillRect(0, ib, w, 2);
-    g.fillStyle = RC.barShade; if (p.m >= 0) g.fillRect(0, ob + 2, w, 1); else g.fillRect(0, ib - 1, w, 1);
-    if (p.m > 0.02) {                                            // steel base channel + shadow, on the side the straight rail has it
-      g.fillStyle = '#8a9096'; g.fillRect(0, ib + 2, w, 3 * p.m);
-      g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, ib + 2 + 3 * p.m, w, 2 * p.m);
-    } else if (p.m < -0.02) {
-      const a = -p.m;
-      g.fillStyle = '#8a9096'; g.fillRect(0, ob - 3 * a, w, 3 * a);
-      g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, ob - 5 * a, w, 2 * a);
-    }
-    g.restore();
+  for (let i = 1; i <= 180; i++) { const a = phi + (Math.PI / 2 - phi) * i / 180; add(cx + TIP_R * Math.sin(a), cy - TIP_R * Math.cos(a), Math.cos(a), Math.sin(a)); }
+  const dense = top.slice();                                                    // the whole loop, travelling clockwise
+  for (let i = top.length - 2; i >= 0; i--) dense.push({ x: top[i].x, y: 2 * cy - top[i].y, tx: -top[i].tx, ty: top[i].ty });
+  const nTop = top.length;
+
+  // ---- 2. the black void: the centre-line pulled in by a constant distance (along the true normal), exactly parallel to the rail ----
+  const smoother = (v) => { v = Math.max(0, Math.min(1, v)); return v * v * v * (v * (v * 6 - 15) + 10); };
+  const vc = document.createElement('canvas'); vc.width = c.width; vc.height = c.height;
+  const vg = vc.getContext('2d');
+  vg.beginPath(); vg.rect(WELL_X, 0, vc.width - WELL_X, vc.height); vg.clip();    // only right of tile 16 (the escalator end-block covers the rest)
+  vg.fillStyle = '#000'; vg.beginPath();
+  dense.forEach((q, i) => {
+    const th = Math.atan2(q.ty, q.tx), inset = (WELL_IN_TOP + WELL_IN_BOT) / 2 + (WELL_IN_TOP - WELL_IN_BOT) / 2 * Math.cos(th);   // 18 top -> 14 bottom, blended round the tip
+    const x = q.x - q.ty * inset;
+    let y = q.y + q.tx * inset;
+    const w = 1 - smoother((x - WELL_X) / 8), edge = i < nTop ? WELL_TOP : WELL_BOT;     // flush with the end-block corner, then eases out over 8px (under 1px of change)
+    y += (edge - y) * w;
+    i ? vg.lineTo(x, y) : vg.moveTo(x, y);
+  });
+  vg.closePath(); vg.fill();
+  const im = vg.getImageData(0, 0, vc.width, vc.height), d = im.data;             // snap to whole pixels: crisp, even stair-steps
+  for (let i = 0; i < d.length; i += 4) { const on = d[i + 3] >= 128; d[i] = 3; d[i + 1] = 3; d[i + 2] = 5; d[i + 3] = on ? 255 : 0; }
+  vg.putImageData(im, 0, 0); g.drawImage(vc, 0, 0);
+
+  // ---- 3. frames along the rail at 4 per pixel; N (a multiple of 8) pixels long so the slats line up with the straight rails ----
+  const cum = [0];
+  for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1] + Math.hypot(dense[i].x - dense[i - 1].x, dense[i].y - dense[i - 1].y));
+  const len = cum[cum.length - 1], N = Math.max(1, Math.round(len / 8)) * 8, K = N * 4;
+  const F = []; let j = 1;
+  for (let k = 0; k <= K; k++) {
+    const sA = k * len / K; while (j < cum.length - 1 && cum[j] < sA) j++;
+    const t = (sA - cum[j - 1]) / ((cum[j] - cum[j - 1]) || 1), p = dense[j - 1], q = dense[j];
+    const tx = p.tx + (q.tx - p.tx) * t, ty = p.ty + (q.ty - p.ty) * t, l = Math.hypot(tx, ty) || 1;
+    F.push({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t, tx: tx / l, ty: ty / l });
   }
-  const tip = pts.reduce((b, p) => (Math.abs(p.s - len / 2) < Math.abs(b.s - len / 2) ? p : b));
-  g.save(); g.translate(tip.x, tip.y); g.rotate(tip.ang);        // one post at the tip of the curve
+  const KT = K / 2;                                                             // frame at the tip (top side is 0..KT, bottom side KT..K)
+  // one band between two offsets from the centre-line, painted as a single path (no seams, no ripples). dA/dB can be numbers or functions of k
+  const band = (k0, k1, dA, dB, fill) => {
+    const fa = typeof dA === 'function' ? dA : () => dA, fb = typeof dB === 'function' ? dB : () => dB;
+    g.fillStyle = fill; g.beginPath();
+    for (let k = k0; k <= k1; k++) { const f = F[k], o = fa(k); (k === k0 ? g.moveTo : g.lineTo).call(g, f.x - f.ty * o, f.y + f.tx * o); }
+    for (let k = k1; k >= k0; k--) { const f = F[k], o = fb(k); g.lineTo(f.x - f.ty * o, f.y + f.tx * o); }
+    g.closePath(); g.fill();
+  };
+
+  // steel base channel + shadow: inside on the top rail, outside on the bottom; it fades out round the tip
+  const fk = (k) => Math.max(0, Math.min(1, Math.abs(F[k].tx) * 1.6));
+  band(0, KT, 8, (k) => 8 + 3 * fk(k), '#8a9096');            band(0, KT, (k) => 8 + 3 * fk(k), (k) => 8 + 5 * fk(k), 'rgba(0,0,0,0.18)');
+  band(KT, K, (k) => -8 - 3 * fk(k), -8, '#8a9096');         band(KT, K, (k) => -8 - 5 * fk(k), (k) => -8 - 3 * fk(k), 'rgba(0,0,0,0.18)');
+  // slats: 4px wide every 8px, lit face on the left, dark edge on the right (as if the rail ran left to right)
+  for (let m = 0; m * 8 < N; m++) {
+    const a = m * 8 + 2, b = m * 8 + 6;
+    for (const [col, lo, hi] of [[RC.slat, a, b], [RC.lit, a, a + 1], [RC.dark, b - 1, b]]) {
+      const kt0 = lo * 4, kt1 = Math.min(KT, hi * 4);                           // top side: position along = i
+      if (kt1 > kt0) band(kt0, kt1, -6, 6, col);
+      const kb0 = Math.max(KT, (N - hi) * 4), kb1 = (N - lo) * 4;               // bottom side: position along = N - i
+      if (kb1 > kb0) band(kb0, kb1, -6, 6, col);
+    }
+  }
+  band(0, K, -8, -6, RC.bar); band(0, K, 6, 8, RC.bar);                          // outer bar, inner bar
+  band(0, KT, -6, -5, RC.barShade); band(KT, K, 5, 6, RC.barShade);
+  g.save(); g.translate(HAT_TIP, cy);                                           // one post at the tip
   g.fillStyle = RC.post; g.fillRect(-1.5, -9.5, 3, 19); g.fillStyle = RC.dark; g.fillRect(0.5, -9.5, 1, 19);
   g.restore();
   return c;
@@ -275,7 +324,8 @@ function buildNose() {
 function drawEscalatorNose(x0, x1, y0, y1) {
   for (let ty = NOSE.ty; ty < NOSE.ty + NOSE.h; ty++) for (let tx = NOSE.tx; tx < NOSE.tx + NOSE.w; tx++) {
     if (tx < x0 || tx > x1 || ty < y0 || ty > y1) continue;
-    drawTile('.', tx * TILE, ty * TILE, tx, ty, 0);              // fresh floor under the curve
+    if (tx === NOSE.tx && ty > NOSE.ty && ty < NOSE.ty + NOSE.h - 1) continue;   // keep the belt ends in tile 15
+    drawTile('.', tx * TILE, ty * TILE, tx, ty, 0);                             // fresh floor under the nose
   }
   if (!noseImg) noseImg = buildNose();
   ctx.drawImage(noseImg, NOSE.tx * TILE, NOSE.ty * TILE);
