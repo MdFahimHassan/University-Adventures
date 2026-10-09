@@ -3,7 +3,8 @@ import { TILE, cols, rows, widthPx, heightPx, getTile, isSolid, items, zoneId } 
 import { transition } from './transition.js';
 import { quest } from './quest.js';
 import { dialogue } from './dialogue.js';
-import { intro, escalator } from './intro.js';
+import { intro } from './intro.js';
+import { drawWell, wellBox, wellTiles } from './escalator.js';
 import { drawCharacter } from './sprites.js';
 import { drawGlassFront, drawGlassTops } from './glass.js';
 import { skyline, drawSkyline } from './skyline.js';
@@ -24,7 +25,7 @@ const COLORS = {
   'S': '#d3d1c7',                       // stairs
   'L': '#7d8aa0',                       // lift
   'D': '#9c6428',                       // store room door
-  'E': '#5c5c66', 'F': '#5c5c66',       // escalators (animated in drawEscalator)
+  'E': '#030305', 'F': '#030305',       // escalators: painted over by drawWell() (escalator.js) - black here just in case
   'v': '#030305',                       // escalator well = black void (the floor below)
   'X': '#a9a28e', 'U': '#a9a28e',       // exit paths (arrow drawn on top)
   'B': '#d9dde0',                       // pool rim / lawn border
@@ -235,7 +236,7 @@ function drawRail(px, py, tx, ty) {
 const NOSE = { tx: 15, ty: 13, w: 4, h: 5 };
 const HAT_TOP = 14, HAT_BOT = 142, HAT_START = 27, HAT_TIP = 114, TIP_R = 26, HAT_ANGLE = 48, HAT_HANDLE = 10;
 const WELL_X = 32, WELL_TOP = 32, WELL_BOT = 128, WELL_IN_TOP = 18, WELL_IN_BOT = 14;   // the void starts at tile 16 and fills rows 14-16
-let noseImg = null;
+let noseImg = null, noseMask = null;   // noseMask = the void's exact shape (pixel-snapped); the escalator well is painted through it
 function buildNose() {
   const c = document.createElement('canvas'); c.width = NOSE.w * TILE; c.height = NOSE.h * TILE;
   const g = c.getContext('2d');
@@ -278,7 +279,7 @@ function buildNose() {
   vg.closePath(); vg.fill();
   const im = vg.getImageData(0, 0, vc.width, vc.height), d = im.data;             // snap to whole pixels: crisp, even stair-steps
   for (let i = 0; i < d.length; i += 4) { const on = d[i + 3] >= 128; d[i] = 3; d[i + 1] = 3; d[i + 2] = 5; d[i + 3] = on ? 255 : 0; }
-  vg.putImageData(im, 0, 0); g.drawImage(vc, 0, 0);
+  vg.putImageData(im, 0, 0); noseMask = vc;                       // the void is no longer filled black here: drawWellLayer() paints the escalator well into this shape
 
   // ---- 3. frames along the rail at 4 per pixel; N (a multiple of 8) pixels long so the slats line up with the straight rails ----
   const cum = [0];
@@ -322,13 +323,33 @@ function buildNose() {
   g.restore();
   return c;
 }
-function drawEscalatorNose(x0, x1, y0, y1) {
+// The escalator well (escalator.js): belts fading into the dark + the floors below. Painted into an offscreen layer, cut to the
+// shape of the straight part + the nose's void, then stamped on the map.
+let wellLayer = null, wellMaskImg = null;
+function drawWellLayer(time) {
+  const B = wellBox;
+  if (!wellLayer) {
+    wellLayer = document.createElement('canvas'); wellLayer.width = B.w; wellLayer.height = B.h;
+    wellMaskImg = document.createElement('canvas'); wellMaskImg.width = B.w; wellMaskImg.height = B.h;
+    const m = wellMaskImg.getContext('2d');
+    m.fillStyle = '#000'; m.fillRect(0, 0, (NOSE.tx + 1) * TILE - B.x, B.h);                       // straight part: tiles up to 15
+    m.drawImage(noseMask, NOSE.tx * TILE - B.x, NOSE.ty * TILE - B.y);                            // + the nose's void (tile 16 on)
+  }
+  const g = wellLayer.getContext('2d');
+  g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, B.w, B.h);
+  g.save(); g.translate(-B.x, -B.y); drawWell(g, time); g.restore();
+  g.globalCompositeOperation = 'destination-in'; g.drawImage(wellMaskImg, 0, 0);
+  g.globalCompositeOperation = 'source-over';
+  ctx.drawImage(wellLayer, B.x, B.y);
+}
+function drawEscalatorNose(x0, x1, y0, y1, time) {
   for (let ty = NOSE.ty; ty < NOSE.ty + NOSE.h; ty++) for (let tx = NOSE.tx; tx < NOSE.tx + NOSE.w; tx++) {
     if (tx < x0 || tx > x1 || ty < y0 || ty > y1) continue;
     if (tx === NOSE.tx && ty > NOSE.ty && ty < NOSE.ty + NOSE.h - 1) continue;   // keep the belt ends in tile 15
     drawTile('.', tx * TILE, ty * TILE, tx, ty, 0);                             // fresh floor under the nose
   }
   if (!noseImg) noseImg = buildNose();
+  if (!(x1 < wellTiles.x0 || x0 > wellTiles.x1 || y1 < wellTiles.y0 || y0 > wellTiles.y1)) drawWellLayer(time);   // the well, under the rails
   ctx.drawImage(noseImg, NOSE.tx * TILE, NOSE.ty * TILE);
 }
 
@@ -426,8 +447,6 @@ function drawTile(ch, px, py, tx, ty, time) {
   } else if (ch === 'D') {                            // door with a knob
     ctx.fillStyle = '#6e4519'; ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 2);
     ctx.fillStyle = '#e0b04a'; ctx.fillRect(px + 22, py + 16, 4, 4);
-  } else if (ch === 'E' || ch === 'F') {
-    drawEscalator(ch, px, py, tx, ty, time);
   } else if (ch === 'W') {
     drawGlassFront(ctx, px, py, tx, ty);
   }
@@ -491,7 +510,7 @@ export function render(game, time) {
   for (let ty = y0; ty <= y1; ty++)
     for (let tx = x0; tx <= x1; tx++)
       drawTile(getTile(tx, ty), tx * TILE, ty * TILE, tx, ty, time);
-  if (zoneId === 'zone1') drawEscalatorNose(x0, x1, y0, y1);   // rounded end of the escalator railing
+  if (zoneId === 'zone1') drawEscalatorNose(x0, x1, y0, y1, time);   // the escalator well + rounded end of the escalator railing
   drawGlassTops(ctx, time, camera, VW, VH);          // glass skylight + the students seen through it (after tiles, before characters)
 
   // Item (ID card): small white card with a bobbing motion
@@ -569,51 +588,6 @@ function drawHint(text) {                             // small bar at the bottom
   ctx.fillStyle = '#7ed957'; ctx.fillText(text, x + 12, y + 19);
 }
 
-// ---- Animated escalator (top-down, pixel style) ----------------------------
-// E (arrival) moves WEST, F moves EAST. Steps are vertical ridges that slide along the belt
-// at escalator.speed (same speed as the intro rider, so he stands still on the belt).
-function drawEscalator(ch, px, py, tx, ty, time) {
-  const dir = ch === 'E' ? -1 : 1;
-  const shift = (((dir * Math.floor(time * escalator.speed)) % 8) + 8) % 8;   // whole pixels = crisp
-
-  ctx.save();                                            // clip so sliding ridges never leak onto neighbour tiles
-  ctx.beginPath(); ctx.rect(px, py, TILE, TILE); ctx.clip();
-
-  // belt base + handrail strips (top and bottom) + yellow safety lines
-  ctx.fillStyle = '#5c5c66'; ctx.fillRect(px, py, TILE, TILE);
-  ctx.fillStyle = '#2a2a31'; ctx.fillRect(px, py, TILE, 5); ctx.fillRect(px, py + TILE - 5, TILE, 5);
-  ctx.fillStyle = '#e0a030'; ctx.fillRect(px, py + 5, TILE, 2); ctx.fillRect(px, py + TILE - 7, TILE, 2);
-
-  // moving handrail dashes (travel with the steps)
-  ctx.fillStyle = '#4a4a54';
-  for (let k = -1; k < 4; k++) {
-    const x = px + k * 8 + shift;
-    ctx.fillRect(x, py + 1, 4, 2); ctx.fillRect(x, py + TILE - 3, 4, 2);
-  }
-
-  // step ridges: dark groove + light edge, 8px apart
-  for (let k = -1; k < 4; k++) {
-    const x = px + k * 8 + shift;
-    ctx.fillStyle = '#3a3a43'; ctx.fillRect(x, py + 7, 2, TILE - 14);
-    ctx.fillStyle = '#7d7d8a'; ctx.fillRect(x + 2, py + 7, 2, TILE - 14);
-  }
-
-  const isEsc = (c) => c === 'E' || c === 'F';
-  // west end: flat "comb plate" where the steps flatten out
-  if (!isEsc(getTile(tx - 1, ty))) {
-    ctx.fillStyle = '#8f8f9c'; ctx.fillRect(px, py + 7, 6, TILE - 14);
-    ctx.fillStyle = '#55555f';
-    for (let i = 0; i < TILE - 14; i += 4) ctx.fillRect(px, py + 7 + i, 6, 1);
-  }
-  // east end: dark hatch where the steps go into / come out of the floor
-  if (!isEsc(getTile(tx + 1, ty))) {
-    const hx = px + TILE - escalator.hatchW;
-    ctx.fillStyle = '#23262b'; ctx.fillRect(hx, py, escalator.hatchW, TILE);
-    ctx.fillStyle = '#f2c230'; ctx.fillRect(hx - 2, py + 5, 2, TILE - 10);   // yellow safety lip
-  }
-  ctx.restore();
-}
-
 function drawNPC(npc, player) {                       // NPC: drawn from its own spritesheet
   if (!drawCharacter(ctx, npc, 'npc')) {             // sheet not loaded yet -> orange box fallback
     ctx.fillStyle = '#ff9800'; ctx.fillRect(npc.x + 6, npc.y + 4, 20, 26);
@@ -624,8 +598,10 @@ function drawNPC(npc, player) {                       // NPC: drawn from its own
 
 function drawPlayer(player) {
   ctx.save();
-  if (intro.active) {                                // during the ride, hide everything east of the hatch
-    ctx.beginPath(); ctx.rect(0, 0, escalator.hatchLeft, heightPx); ctx.clip();
+  if (intro.active && (intro.rider.alpha < 1 || intro.rider.scale < 1)) {   // the ride: he comes up out of the dark, small and faint, and grows
+    const cx = player.cx, cy = player.y + player.h / 2, k = intro.rider.scale;
+    ctx.globalAlpha = Math.max(0, intro.rider.alpha);
+    ctx.translate(cx, cy); ctx.scale(k, k); ctx.translate(-cx, -cy);
   }
   const lean = skyline.bodyShift();                  // leaning out: the sprite shifts a few px toward the rail
   ctx.translate(lean.x, lean.y);
