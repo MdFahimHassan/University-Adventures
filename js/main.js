@@ -1,5 +1,5 @@
 // main.js - creates everything and runs the game loop.
-import { spawn, npcSpawn, items, getExitHint, getExit, zoneId, TILE } from './map.js';
+import { spawn, npcSpawn, items, getExitHint, getExit, findSeat, zoneId, TILE } from './map.js';
 import { transition } from './transition.js';
 import { input } from './input.js';
 import { Player } from './player.js';
@@ -34,19 +34,30 @@ function update(dt) {
 
   const npcHere = game.npc.zone === zoneId;          // the NPC lives in zone 1 only
 
+  const p = game.player;
   if (dialogue.active) {
     // while talking: E advances text, player can't move
     if (input.wasPressed('KeyE')) dialogue.advance();
-  } else if (input.wasPressed('KeyE') && npcHere && game.npc.isNear(game.player)) {
-    const t = quest.talk();
-    dialogue.start(game.npc.name, t.lines, t.next);
+  } else if (p.sitting) {
+    // sitting on a bench: E (or a walk key, after a short moment) gets you back on your feet
+    p.sitTime += dt;
+    if (input.wasPressed('KeyE') || (p.sitTime > 0.4 && (input.left() || input.right() || input.up() || input.down()))) p.standUp();
+  } else if (input.wasPressed('KeyE')) {
+    if (npcHere && game.npc.isNear(p)) {
+      const t = quest.talk();
+      dialogue.start(game.npc.name, t.lines, t.next);
+    } else {
+      const seat = findSeat(p.cx, p.cy);               // near a bench? E sits down
+      if (seat) p.sitDown(seat);
+    }
   }
-  game.player.update(dt, !dialogue.active);
+  p.update(dt, !dialogue.active && !p.sitting);
   if (npcHere) game.npc.facePlayer(game.player);     // NPC turns to look at you when you're near
   const tx = Math.floor(game.player.cx / TILE), ty = Math.floor(game.player.cy / TILE);
   const exit = getExit(tx, ty);
   if (exit && exit.to) { transition.start(exit); return; }   // stepped on an exit tile -> fade to the next zone
   game.hint = getExitHint(tx, ty);
+  if (!game.hint && !dialogue.active) game.hint = p.sitting ? '[E] Stand up' : (findSeat(p.cx, p.cy) ? '[E] Sit down' : null);
 
   // Pick up the ID card by walking over it (only once the quest asks for it)
   if (quest.state === 'find') {

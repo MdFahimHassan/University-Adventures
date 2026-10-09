@@ -4,6 +4,8 @@
 // Frame 0 = standing still, frames 1-8 = the walking cycle.
 const FRAME = 64;                                   // frame size in the sheet
 const WALK_ROW = { up: 8, left: 9, down: 10, right: 11 };
+const SIT_ROW = { up: 30, left: 31, down: 32, right: 33 };   // sitting rows of the PLAYER sheet
+const SIT_FRAME = 2;                                // frame 2 = seated on a bench/chair (frames 0-1 sit on the ground)
 const WALK_FPS = 12;                                // walking animation speed
 const FEET_X = 32, FEET_Y = 56;                     // where the feet are inside a 64x64 frame
 const SCALE = 0.75;   // 1 = original 64px, 0.5 = 32px. 
@@ -21,8 +23,9 @@ const sheets = {
 export function drawCharacter(ctx, who, which = 'player') {
   const sheet = sheets[which];
   if (!sheet.complete || sheet.naturalWidth === 0) return false;
-  const frame = who.moving ? 1 + (Math.floor(who.animTime * WALK_FPS) % 8) : 0;
-  const row = WALK_ROW[who.facing] ?? WALK_ROW.down;
+  const sit = who.sitting && which === 'player';
+  const frame = sit ? SIT_FRAME : who.moving ? 1 + (Math.floor(who.animTime * WALK_FPS) % 8) : 0;
+  const row = sit ? (SIT_ROW[who.facing] ?? SIT_ROW.down) : (WALK_ROW[who.facing] ?? WALK_ROW.down);
   const footY = who.footY ?? (who.y + who.h);       // players use their hitbox bottom
   const size = FRAME * SCALE;                       // drawn size on screen
   const dx = Math.round(who.cx - FEET_X * SCALE);   // feet stay at the bottom-center

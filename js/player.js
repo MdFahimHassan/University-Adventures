@@ -11,6 +11,21 @@ export class Player {
     this.facing = 'down';                    // 'up' | 'left' | 'down' | 'right' (which sprite row to draw)
     this.moving = false;                     // true while actually walking (plays the walk cycle)
     this.animTime = 0;                       // seconds spent walking (drives the animation frame)
+    this.sitting = false;                    // true while sitting on a bench
+    this.sitTime = 0;                        // seconds spent sitting (so a held walk key doesn't stand you up instantly)
+    this.preSit = null;                      // where we stood before sitting (we go back there when standing up)
+  }
+  // Sit on a bench tile found by findSeat(): the sprite's sitting pose is drawn by sprites.js
+  sitDown(seat) {
+    this.preSit = { x: this.x, y: this.y };
+    this.sitting = true; this.sitTime = 0; this.moving = false; this.animTime = 0;
+    this.facing = seat.facing;
+    this.x = seat.x - this.w / 2;
+    this.y = seat.y - this.h / 2 + 1;        // +1: nudge so the seated sprite rests on the seat
+  }
+  standUp() {
+    this.sitting = false;
+    if (this.preSit) { this.x = this.preSit.x; this.y = this.preSit.y; }
   }
   get cx() { return this.x + this.w / 2; }   // center, handy for distance checks
   get cy() { return this.y + this.h / 2; }

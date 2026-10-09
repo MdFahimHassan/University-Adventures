@@ -7,7 +7,9 @@
 //   L  lift (solid)        E/F escalators (solid, animated)             v  escalator well (solid)
 //   W  raised glass skylight (solid, see-through to the floor below)
 // New in zone 4:
-//   C  stone bench (solid)   T  small tree (solid)   b  bush (WALKABLE - you can walk into it)
+//   C  concrete bench (solid)   T  tree in a grey planter box (solid)   b  bush (WALKABLE - you can walk into it)
+// Planted areas with a pale guard rail (all solid; the rail is drawn automatically on every edge that faces open floor):
+//   H  clipped hedge    Y  bush mound    Z  tree     (mix them freely, e.g. HHYHZHHY)
 //   H  dense hedge (SOLID - a bush you can NOT walk through; used for the hedge lanes in zone 1)
 // New in zone 3:
 //   g  grass (walkable lawn)   K  storage room block (solid)   S on the bottom row = stairs down to zone 1
@@ -27,39 +29,43 @@ export const ZONES = {
   //   - top sitting area (rows 1-7) and bottom sitting area (rows 22-28): a bench ring C around two trees T,
   //     walled off on the left by a 2-wide, 5-row hedge lane H. You enter through the 2-row gap (path p)
   //     between the hedge lane and the bush bed's railing (top: rows 6-7, bottom: rows 22-23)
-  //   - rows 21-28 on the left: the big open south area (the lost ID card lives here, at x 16, row 24)
+  //   - x 22-26, rows 0-5: a small mixed hedge (H/Y/Z) right of the storage room. It has no rail on top, so it looks like
+  //     it keeps going into the upper zone. The 2-wide path beside it (x 27-28, rows 0-7) will lead up to that zone
+  //   - rows 21-23 on the left: open south area (the lost ID card lives here, at x 14, row 22)
+  //   - rows 24-28, x 1-26: the long mixed hedge strip (H / Y / Z). The 2-wide walkway (x 27-28) runs along its right end
+  //   - rows 8-21, x 29-36: the planted bed (same H / Y / Z mix), wall on x 37
   zone1: {
     name: 'Rooftop Entry',
     rows: [
-    "#..USSSSSSSSSSSS.U#DD#RRRRRRRRRRRRRRRR",
-    "#..pSppppppppppS.ppppp.......HH......R",
-    "#..ppppppppppppppppppppppppp.HH..CCC.R",
-    "#......pp....................HH..CTC.R",
-    "#......pp....................HH..CTC.R",
-    "#......pp....................HH..CCC.R",
-    "#......pp....................ppp.....R",
-    "#......pp....................ppp.....R",
-    "#......pp....................RRRRRRRRR",
-    "#......pp............WWWWWW..Rbbbbbbb#",
-    "#......pp............WWWWWW..RbbTbbTb#",
-    "Xpppppppp............WWWWWW..Rbbbbbbb#",
-    "#..ppppppppppppppppppWWWWWW..Rbbbbbbb#",
-    "#LLppppppRRRRRRRRRR..WWWWWW..RbbbTbbb#",
-    "#......pp.PEEEEEvvR..WWWWWW..Rbbbbbbb#",
-    "#.....NppRRvvvvvvvR..WWWWWW..Rbbbbbbb#",
-    "#......pp..FFFFFvvR..WWWWWW..RbTbbbTb#",
-    "#LLppppppRRRRRRRRRR..WWWWWW..Rbbbbbbb#",
-    "#..ppppppppppppppppppWWWWWW..Rbbbbbbb#",
-    "Xpppppp..............WWWWWW..RbbbTbbb#",
-    "#....................WWWWWW..Rbbbbbbb#",
-    "#............................RRRRRRRRR",
+    "#..USSSSSSSSSSSS.U#DD#YYHZHUURRRRRRRRR",
+    "#..pSppppppppppS.pppppYZHYHppHH......R",
+    "#..pppppppppppppppppppYYHHZppHH..CCC.R",
+    "#......pp.............YHHHYppHH..CTC.R",
+    "#......pp.............HZHYZppHH..CTC.R",
+    "#......pp.............YYHYHppHH..CCC.R",
+    "#......pp..................ppppp.....R",
+    "#......pp..................ppppp.....R",
+    "#......pp....................HHYHYYHZ#",
+    "#......pp............WWWWWW..YZHZHYHH#",
+    "#......pp............WWWWWW..YHHHYHYH#",
+    "Xpppppppp............WWWWWW..HHZHHHZH#",
+    "#..ppppppppppppppppppWWWWWW..HHHHHYHY#",
+    "#LLppppppRRRRRRRRRR..WWWWWW..ZYHZHHHH#",
+    "#......pp.PEEEEEvvR..WWWWWW..YHYHHZHY#",
+    "#.....NppRRvvvvvvvR..WWWWWW..HHHHYHYH#",
+    "#......pp..FFFFFvvR..WWWWWW..ZYHHHHHH#",
+    "#LLppppppRRRRRRRRRR..WWWWWW..HHZHHHHH#",
+    "#..ppppppppppppppppppWWWWWW..HHYYHHYH#",
+    "Xpppppp..............WWWWWW..ZYYYHYZH#",
+    "#....................WWWWWW..HYHHHHHY#",
+    "#............................HHHYYHYH#",
+    "#.............I..............ppp.....R",
     "#............................ppp.....R",
-    "#............................ppp.....R",
-    "#...............I............HH..CCC.R",
-    "#............................HH..CTC.R",
-    "#............................HH..CTC.R",
-    "#............................HH..CCC.R",
-    "#............................HH......R",
+    "#ZHHHYYHHYHYHZYHYYHHZHHYHZY..HH..CCC.R",
+    "#YYHHHHHHHZHHYYHHYHYHHZHYYY..HH..CTC.R",
+    "#HZHZHHHHHHHZHYHHZYHHYHHHYH..HH..CTC.R",
+    "#HYYYHHYYZYHHYHYYYYYYHYYHHY..HH..CCC.R",
+    "#HYHHHHHHYYHHHYHHYHHYYZYHZY..HH......R",
     "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
     ],
     exits: {
@@ -67,6 +73,9 @@ export const ZONES = {
       '0,19': { to: 'zone2', spawn: { x: 28, y: 13 }, facing: 'left', label: 'Left path' },
       '3,0':  { to: 'zone3', spawn: { x: 2, y: 16 },  facing: 'up', label: 'Up path (left)' },
       '17,0': { to: 'zone3', spawn: { x: 27, y: 16 }, facing: 'up', label: 'Up path (right)' },
+      // 2-wide path at the top right: will lead to the upper zone (no 'to' yet = just shows a hint)
+      '27,0': { label: 'Upper zone path' },
+      '28,0': { label: 'Upper zone path' },
     },
   },
 

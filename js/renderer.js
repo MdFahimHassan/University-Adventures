@@ -27,8 +27,8 @@ const COLORS = {
   'X': '#a9a28e', 'U': '#a9a28e',       // exit paths (arrow drawn on top)
   'B': '#d9dde0',                       // pool rim / lawn border
   'K': '#4f4f5a',                       // storage room block (solid)
-  'C': '#c9b583', 'T': '#6b5a3a', 'b': '#4a9a4a',   // bench, tree (on soil), bush
-  'H': '#1f5a28',                       // solid hedge (leaf blobs drawn on top in drawHedge)
+  'C': '#b8b2a4', 'T': '#b8b2a4', 'b': '#4a9a4a',   // bench + planter (floor first, drawn in drawBench / drawPlanter), bush
+  'H': '#1f5a28', 'Y': '#1f5a28', 'Z': '#1f5a28',   // planted areas: hedge / bush mound / tree (drawn in drawPlanted)
   'M': '#5b5b66', 'G': '#5b5b66',       // restroom doors (wall colour, door drawn on top)
   'W': '#2f3b43',                       // glass skylight: the dark floor you see through it (drawn in drawGlass)
 };
@@ -48,30 +48,114 @@ function drawBlobs(px, py, a) {                       // two leafy bush blobs (a
   ctx.globalAlpha = 1;
 }
 
-// Solid hedge: a dense wall of leaves. Leaf positions come from tx/ty (no random flicker), and the
-// light top edge / dark bottom edge only appear where the hedge ENDS, so a block of H tiles reads as one big hedge.
-function drawHedge(px, py, tx, ty) {
-  const isH = (x, y) => getTile(x, y) === 'H';
+// ---- planted areas: H = clipped hedge, Y = bush mound, Z = tree -----------------------------------------
+// All three are solid. Leaf positions come from tx/ty (no random flicker). A pale guard rail is drawn
+// automatically on every edge that faces open floor (see drawGuardRail), like the hedges in the real photos.
+const isPlanted = (x, y) => { const c = getTile(x, y); return c === 'H' || c === 'Y' || c === 'Z'; };
+const rnd = (a, b, c = 0) => Math.abs(Math.sin(a * 12.9898 + b * 78.233 + c * 37.719) * 43758.5453) % 1;
+function disc(x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+
+function drawPlanted(ch, px, py, tx, ty) {
   ctx.save();
   ctx.beginPath(); ctx.rect(px, py, TILE, TILE); ctx.clip();       // leaves never spill onto neighbour tiles
-  const shades = ['#2e7d32', '#388e3c', '#2a7030', '#43a047'];
-  for (let i = 0; i < 9; i++) {                                   // 3x3 grid of overlapping leaf blobs
-    const gx = i % 3, gy = Math.floor(i / 3);
-    const h = Math.abs(Math.sin((tx * 3 + gx) * 12.9898 + (ty * 3 + gy) * 78.233) * 43758.5453) % 1;
-    ctx.fillStyle = shades[Math.floor(h * shades.length)];
-    ctx.beginPath(); ctx.arc(px + gx * 11 + 5 + (h - 0.5) * 4, py + gy * 11 + 5 + (h * 7 % 1 - 0.5) * 4, 8, 0, Math.PI * 2); ctx.fill();
+  if (ch === 'Y') {                                                // bush mounds: rounder and lighter than the hedge
+    ctx.fillStyle = '#24652b'; ctx.fillRect(px, py, TILE, TILE);
+    const shades = ['#2f8a37', '#3a9a42', '#43a047', '#2c7d33'];
+    [[9, 10], [22, 9], [11, 23], [24, 22], [16, 16]].forEach(([sx, sy], i) => {
+      const cx = px + sx + (rnd(tx, ty, i) - 0.5) * 4, cy = py + sy + (rnd(tx, ty, i + 9) - 0.5) * 4;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; disc(cx + 1, cy + 2, 9);
+      ctx.fillStyle = shades[i % shades.length]; disc(cx, cy, 8.5);
+      ctx.fillStyle = '#8bd18f'; ctx.fillRect(Math.round(cx - 3), Math.round(cy - 4), 3, 2);
+    });
+  } else if (ch === 'Z') {                                         // tree: one big canopy
+    ctx.fillStyle = '#1f5a28'; ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.30)'; disc(px + 17, py + 19, 14.5);
+    ctx.fillStyle = '#2e7d32'; disc(px + 16, py + 15, 14.5);
+    ctx.fillStyle = '#388e3c'; disc(px + 12, py + 12, 9); disc(px + 21, py + 17, 8);
+    ctx.fillStyle = '#4caf50'; disc(px + 11, py + 9, 5);
+    ctx.fillStyle = '#8bd18f';
+    ctx.fillRect(px + 9, py + 7, 3, 2); ctx.fillRect(px + 20, py + 13, 3, 2); ctx.fillRect(px + 14, py + 20, 3, 2);
+  } else {                                                         // clipped hedge: dense wall of leaves
+    const shades = ['#2e7d32', '#388e3c', '#2a7030', '#43a047'];
+    for (let i = 0; i < 9; i++) {                                  // 3x3 grid of overlapping leaf blobs
+      const gx = i % 3, gy = Math.floor(i / 3);
+      const h = Math.abs(Math.sin((tx * 3 + gx) * 12.9898 + (ty * 3 + gy) * 78.233) * 43758.5453) % 1;
+      ctx.fillStyle = shades[Math.floor(h * shades.length)];
+      ctx.beginPath(); ctx.arc(px + gx * 11 + 5 + (h - 0.5) * 4, py + gy * 11 + 5 + (h * 7 % 1 - 0.5) * 4, 8, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#7bc47f';                                     // a few bright leaf highlights
+    for (let i = 0; i < 4; i++) {
+      const h = Math.abs(Math.sin((tx * 5 + i) * 39.346 + (ty * 7 + i) * 11.135) * 43758.5453) % 1;
+      const h2 = Math.abs(Math.sin((tx * 5 + i) * 17.17 + (ty * 7 + i) * 91.7) * 12345.678) % 1;
+      ctx.fillRect(px + 3 + Math.floor(h * 24), py + 3 + Math.floor(h2 * 22), 3, 2);
+    }
+    ctx.fillStyle = '#143d1a';                                     // deep gaps between the leaves
+    ctx.fillRect(px + 7, py + 14, 3, 2); ctx.fillRect(px + 20, py + 8, 3, 2); ctx.fillRect(px + 14, py + 24, 3, 2);
   }
-  ctx.fillStyle = '#7bc47f';                                       // a few bright leaf highlights
-  for (let i = 0; i < 4; i++) {
-    const h = Math.abs(Math.sin((tx * 5 + i) * 39.346 + (ty * 7 + i) * 11.135) * 43758.5453) % 1;
-    const h2 = Math.abs(Math.sin((tx * 5 + i) * 17.17 + (ty * 7 + i) * 91.7) * 12345.678) % 1;
-    ctx.fillRect(px + 3 + Math.floor(h * 24), py + 3 + Math.floor(h2 * 22), 3, 2);
-  }
-  ctx.fillStyle = '#143d1a';                                       // deep gaps between the leaves
-  ctx.fillRect(px + 7, py + 14, 3, 2); ctx.fillRect(px + 20, py + 8, 3, 2); ctx.fillRect(px + 14, py + 24, 3, 2);
-  if (!isH(tx, ty - 1)) { ctx.fillStyle = 'rgba(190,240,170,0.28)'; ctx.fillRect(px, py, TILE, 4); }              // lit top edge
-  if (!isH(tx, ty + 1)) { ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fillRect(px, py + TILE - 6, TILE, 6); }          // shaded base
+  // light top edge / dark base only where the planted area ENDS, so a block of tiles reads as one big mass
+  if (ty > 0 && !isPlanted(tx, ty - 1)) { ctx.fillStyle = 'rgba(190,240,170,0.28)'; ctx.fillRect(px, py, TILE, 4); }   // (none at the map's top edge: the hedge carries on)
+  if (!isPlanted(tx, ty + 1)) { ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fillRect(px, py + TILE - 6, TILE, 6); }
   ctx.restore();
+  drawGuardRail(px, py, tx, ty);
+}
+
+// Pale grey safety rail for planted areas (NOT the dark two-bar roof railing): a slim handrail on top,
+// thin vertical balusters under it, and a post at each end of every tile. Drawn on every open face.
+const RAIL = { hand: '#d6dadd', bal: '#98a0a5', post: '#eceff1', shadow: 'rgba(0,0,0,0.28)' };
+function railH(x, y) {                                    // horizontal rail segment (top / bottom faces)
+  ctx.fillStyle = RAIL.shadow; ctx.fillRect(x, y + 6, TILE, 1);
+  ctx.fillStyle = RAIL.bal; for (let i = 3; i < TILE - 2; i += 4) ctx.fillRect(x + i, y + 3, 1, 4);
+  ctx.fillStyle = RAIL.hand; ctx.fillRect(x, y + 1, TILE, 2);
+  ctx.fillStyle = RAIL.post; ctx.fillRect(x, y, 2, 7); ctx.fillRect(x + TILE - 2, y, 2, 7);
+}
+function railV(x, y, east) {                              // vertical rail segment (left / right faces)
+  const hx = east ? x + 4 : x + 1, bx = east ? x + 1 : x + 3;
+  ctx.fillStyle = RAIL.shadow; ctx.fillRect(east ? x : x + 6, y, 1, TILE);
+  ctx.fillStyle = RAIL.bal; for (let i = 3; i < TILE - 2; i += 4) ctx.fillRect(bx, y + i, 3, 1);
+  ctx.fillStyle = RAIL.hand; ctx.fillRect(hx, y, 2, TILE);
+  ctx.fillStyle = RAIL.post; ctx.fillRect(x, y, 7, 2); ctx.fillRect(x, y + TILE - 2, 7, 2);
+}
+function drawGuardRail(px, py, tx, ty) {
+  const open = (x, y) => !isPlanted(x, y) && !isSolid(x, y);   // floor / path next to the planted area
+  if (open(tx, ty - 1)) railH(px, py);
+  if (open(tx, ty + 1)) railH(px, py + TILE - 7);
+  if (open(tx - 1, ty)) railV(px, py, false);
+  if (open(tx + 1, ty)) railV(px + TILE - 7, py, true);
+}
+
+// ---- concrete bench (C) and tree planter (T) -------------------------------------------------------
+// Light speckled concrete seat with a darker front face, like the benches in the photos.
+// T tiles sit in the middle of the bench ring: a dark grey tapered planter box with a tree growing out of it.
+const isBenchPart = (x, y) => { const c = getTile(x, y); return c === 'C' || c === 'T'; };
+function drawBench(px, py, tx, ty) {
+  const n = isBenchPart(tx, ty - 1), s = isBenchPart(tx, ty + 1), w = isBenchPart(tx - 1, ty), e = isBenchPart(tx + 1, ty);
+  const x0 = w ? 0 : 1, x1 = e ? TILE : TILE - 1, y0 = n ? 0 : 1, yb = s ? TILE : TILE - 6;
+  ctx.fillStyle = '#c9cccd'; ctx.fillRect(px + x0, py + y0, x1 - x0, yb - y0);           // seat top
+  for (let i = 0; i < 8; i++) {                                                           // concrete speckle
+    ctx.fillStyle = i % 2 ? '#aeb2b4' : '#dfe1e2';
+    ctx.fillRect(px + 2 + Math.floor(rnd(tx, ty, i) * (TILE - 5)), py + 2 + Math.floor(rnd(tx, ty, i + 30) * (yb - 4)), 1, 1);
+  }
+  if (!n) { ctx.fillStyle = '#e1e3e4'; ctx.fillRect(px + x0, py + y0, x1 - x0, 2); }      // lit top lip
+  if (!w) { ctx.fillStyle = '#dfe1e2'; ctx.fillRect(px + x0, py + y0, 1, yb - y0); }
+  if (!e) { ctx.fillStyle = '#a9adaf'; ctx.fillRect(px + x1 - 1, py + y0, 1, yb - y0); }
+  if (!s) {                                                                               // darker front face + base shadow
+    ctx.fillStyle = '#9da1a3'; ctx.fillRect(px + x0, py + yb, x1 - x0, 4);
+    ctx.fillStyle = '#6f7477'; ctx.fillRect(px + x0 + 1, py + yb + 4, x1 - x0 - 2, 1);
+  }
+}
+function drawPlanter(px, py, tx, ty) {
+  drawBench(px, py, tx, ty);                                                              // the seat continues under the planter
+  const isT = (x, y) => getTile(x, y) === 'T';
+  const n = isT(tx, ty - 1), s = isT(tx, ty + 1);
+  const x0 = px + 3, x1 = px + TILE - 3, y0 = py + (n ? 0 : 2), y1 = py + (s ? TILE : TILE - 2);
+  ctx.fillStyle = '#6a6c72'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);                      // box body
+  if (!n) { ctx.fillStyle = '#868890'; ctx.fillRect(x0, y0, x1 - x0, 2); }                // lit rim
+  if (!s) { ctx.fillStyle = '#4d4f55'; ctx.fillRect(x0, y1 - 5, x1 - x0, 5); }            // darker front face
+  ctx.fillStyle = '#3b4a33'; ctx.fillRect(x0 + 3, y0 + (n ? 0 : 3), x1 - x0 - 6, (y1 - y0) - (n ? 0 : 3) - (s ? 0 : 6));   // soil
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; disc(px + 17, py + 17, 12);                         // canopy shadow
+  ctx.fillStyle = '#2e7d32'; disc(px + 16, py + 14, 12);
+  ctx.fillStyle = '#43a047'; disc(px + 12, py + 10, 7);
+  ctx.fillStyle = '#8bd18f'; ctx.fillRect(px + 9, py + 7, 3, 2); ctx.fillRect(px + 19, py + 14, 3, 2);
 }
 
 function drawTile(ch, px, py, tx, ty, time) {
@@ -108,17 +192,14 @@ function drawTile(ch, px, py, tx, ty, time) {
       ctx.fillStyle = 'rgba(0,0,0,0.10)';
       ctx.fillRect(px + 6 + (tx % 3) * 5, py + 8, 2, 4); ctx.fillRect(px + 20 - (ty % 3) * 4, py + 20, 2, 4);
     }
-  } else if (ch === 'C') {                            // stone bench: sandy seat with a darker front edge
-    ctx.fillStyle = '#d8c79b'; ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
-    ctx.fillStyle = '#a8946a'; ctx.fillRect(px, py + TILE - 5, TILE, 5);
-  } else if (ch === 'T') {                            // small tree on soil
-    ctx.fillStyle = '#2e7d32'; ctx.beginPath(); ctx.arc(px + 16, py + 16, 13, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#43a047'; ctx.beginPath(); ctx.arc(px + 13, py + 12, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#5d4037'; ctx.fillRect(px + 14, py + 14, 5, 5);
+  } else if (ch === 'C') {                            // concrete bench
+    drawBench(px, py, tx, ty);
+  } else if (ch === 'T') {                            // tree in a grey planter box
+    drawPlanter(px, py, tx, ty);
   } else if (ch === 'b') {                            // bush (walkable)
     drawBlobs(px, py, 1);
-  } else if (ch === 'H') {                            // solid hedge: dense leaves, you cannot walk through it
-    drawHedge(px, py, tx, ty);
+  } else if (ch === 'H' || ch === 'Y' || ch === 'Z') {   // planted areas: solid, with a pale guard rail on open edges
+    drawPlanted(ch, px, py, tx, ty);
   } else if (ch === 'K') {                            // storage room block: roof edge on top, shadow below
     ctx.fillStyle = '#6a6a76'; ctx.fillRect(px, py, TILE, 3);
     ctx.fillStyle = '#3b3b45'; ctx.fillRect(px, py + TILE - 6, TILE, 6);
