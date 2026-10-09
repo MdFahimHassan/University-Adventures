@@ -10,6 +10,8 @@
 //   C  concrete bench (solid)   T  tree in a grey planter box (solid)   b  bush (WALKABLE - you can walk into it)
 // Planted areas with a pale guard rail (all solid; the rail is drawn automatically on every edge that faces open floor):
 //   H  clipped hedge    Y  bush mound    Z  tree     (mix them freely, e.g. HHYHZHHY)
+// Gymnasium (zone 1, left wall, rows 24-27):
+//   J  gym sliding glass door (solid)   Q  wall with the usage-rules poster + wooden cabinet (solid)   r  red gym mat (walkable, 3 tiles between the two doors)
 //   H  dense hedge (SOLID - a bush you can NOT walk through; used for the hedge lanes in zone 1)
 // New in zone 3:
 //   g  grass (walkable lawn)   K  storage room block (solid)   S on the bottom row = stairs down to zone 1
@@ -33,6 +35,8 @@ export const ZONES = {
   //     it keeps going into the upper zone. The 2-wide path beside it (x 27-28, rows 0-7) will lead up to that zone
   //   - rows 21-23 on the left: open south area (the lost ID card lives here, at x 14, row 22)
   //   - rows 24-28, x 1-26: the long mixed hedge strip (H / Y / Z). The 2-wide walkway (x 27-28) runs along its right end
+  //   - gymnasium: on the left wall (x 0, rows 24-27) with a 2-wide path (x 1-2, rows 24-28; the red mat covers x 1, rows 24-26, between the two doors) cut through
+  //     the hedge strip. The opening at (0,28) will later connect to the pool zone
   //   - rows 8-21, x 29-36: the planted bed (same H / Y / Z mix), wall on x 37
   zone1: {
     name: 'Rooftop Entry',
@@ -61,11 +65,11 @@ export const ZONES = {
     "#............................HHHYYHYH#",
     "#.............I..............ppp.....R",
     "#............................ppp.....R",
-    "#ZHHHYYHHYHYHZYHYYHHZHHYHZY..HH..CCC.R",
-    "#YYHHHHHHHZHHYYHHYHYHHZHYYY..HH..CTC.R",
-    "#HZHZHHHHHHHZHYHHZYHHYHHHYH..HH..CTC.R",
-    "#HYYYHHYYZYHHYHYYYYYYHYYHHY..HH..CCC.R",
-    "#HYHHHHHHYYHHHYHHYHHYYZYHZY..HH......R",
+    "JrpHHYYHHYHYHZYHYYHHZHHYHZY..HH..CCC.R",
+    "QrpHHHHHHHZHHYYHHYHYHHZHYYY..HH..CTC.R",
+    "JrpHZHHHHHHHZHYHHZYHHYHHHYH..HH..CTC.R",
+    "#ppYYHHYYZYHHYHYYYYYYHYYHHY..HH..CCC.R",
+    "XppHHHHHHYYHHHYHHYHHYYZYHZY..HH......R",
     "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
     ],
     exits: {
@@ -76,6 +80,8 @@ export const ZONES = {
       // 2-wide path at the top right: will lead to the upper zone (no 'to' yet = just shows a hint)
       '27,0': { label: 'Upper zone path' },
       '28,0': { label: 'Upper zone path' },
+      // bottom-left opening beside the gym: will link to the pool zone later (no 'to' yet = just shows a hint)
+      '0,28': { label: 'Pool zone path' },
     },
   },
 

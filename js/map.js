@@ -43,7 +43,7 @@ export function getTile(tx, ty) {
   if (tx < 0 || ty < 0 || tx >= cols || ty >= rows) return '#'; // outside = wall
   return grid[ty][tx];
 }
-export const isSolid = (tx, ty) => '#RLDvEFB~MGKCTWHYZ'.includes(getTile(tx, ty));   // H = hedge, Y = bush mound, Z = tree (all solid)
+export const isSolid = (tx, ty) => '#RLDvEFB~MGKCTWHYZJQ'.includes(getTile(tx, ty));   // H = hedge, Y = bush mound, Z = tree, J = gym door, Q = gym poster wall (all solid)
 
 // Exit info for a tile of the current zone (or null)
 export const getExit = (tx, ty) => ZONES[zoneId].exits?.[tx + ',' + ty] ?? null;

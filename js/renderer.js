@@ -30,6 +30,8 @@ const COLORS = {
   'K': '#4f4f5a',                       // storage room block (solid)
   'C': '#b8b2a4', 'T': '#b8b2a4', 'b': '#4a9a4a',   // bench + planter (floor first, drawn in drawBench / drawPlanter), bush
   'H': '#1f5a28', 'Y': '#1f5a28', 'Z': '#1f5a28',   // planted areas: hedge / bush mound / tree (drawn in drawPlanted)
+  'J': '#5b5b66', 'Q': '#5b5b66',       // gym door / poster wall (wall colour, details drawn on top)
+  'r': '#b8453f',                       // red gym mat (walkable)
   'M': '#5b5b66', 'G': '#5b5b66',       // restroom doors (wall colour, door drawn on top)
   'W': '#2f3b43',                       // glass skylight: the dark floor you see through it (drawn in drawGlass)
 };
@@ -303,6 +305,13 @@ function drawTile(ch, px, py, tx, ty, time) {
     drawRail(px, py, tx, ty);
   } else if (ch === 'B') {                            // pool rim: light concrete with seams
     ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(px, py, TILE, 2); ctx.fillRect(px, py, 2, TILE);
+  } else if (ch === 'r') {                            // red gym mat: rubber ribbing + yellow edge strip against the wall
+    ctx.fillStyle = 'rgba(0,0,0,0.10)'; for (let i = 4; i < TILE; i += 6) ctx.fillRect(px, py + i, TILE, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; for (let i = 5; i < TILE; i += 6) ctx.fillRect(px, py + i, TILE, 1);
+    if ((tx + ty) % 2 === 0) { ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.fillRect(px, py, TILE, TILE); }
+    ctx.fillStyle = '#e0a82e'; ctx.fillRect(px, py, 3, TILE);
+  } else if (ch === 'J' || ch === 'Q') {              // gym facade (west wall, faces east)
+    drawGymWall(ch, px, py, tx, ty);
   } else if (ch === 'M' || ch === 'G') {              // restroom door with a sign: M = men, W = women
     ctx.fillStyle = '#44444d'; ctx.fillRect(px, py + TILE - 6, TILE, 6);
     ctx.fillStyle = ch === 'M' ? '#2f6fb5' : '#c2548c'; ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 3);
@@ -338,6 +347,40 @@ function drawTile(ch, px, py, tx, ty, time) {
   } else if (ch === 'W') {
     drawGlassFront(ctx, px, py, tx, ty);
   }
+}
+
+// ---- gymnasium facade (J = sliding glass door, Q = poster + cabinet wall) ---------------------------------
+// Drawn as a normal front view (top of the door at the top of the tile, threshold at the bottom), then the whole tile is
+// rotated a quarter turn anticlockwise so it fits the WEST wall of a top-down map: door top -> wall side, threshold -> mat side.
+function drawGymWall(ch, px, py, tx, ty) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(px, py, TILE, TILE); ctx.clip();
+  ctx.translate(px + TILE / 2, py + TILE / 2); ctx.rotate(-Math.PI / 2); ctx.translate(-TILE / 2, -TILE / 2);   // now draw in 0..32 local coords
+  ctx.fillStyle = '#6b6b72'; ctx.fillRect(0, 0, TILE, TILE);                         // lighter concrete than the plain wall
+  ctx.fillStyle = 'rgba(0,0,0,0.10)'; ctx.fillRect(10, 0, 1, TILE); ctx.fillRect(21, 0, 1, TILE);   // board-formed seams
+  if (ch === 'J') {
+    const open = ty > 24;                                                           // the second door is slid slightly open
+    ctx.fillStyle = '#9aa3a8'; ctx.fillRect(2, 1, TILE - 4, TILE - 1);              // aluminium frame
+    ctx.fillStyle = '#b9d3d6'; ctx.fillRect(4, 3, 11, 24);                          // frosted panel 1
+    ctx.fillStyle = '#a8c4c8'; ctx.fillRect(17, 3, 11, 24);                         // frosted panel 2
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(6, 5, 2, 18); ctx.fillRect(19, 5, 2, 18);
+    ctx.fillStyle = '#9aa3a8'; ctx.fillRect(15, 3, 2, 24);                          // meeting stile
+    if (open) {                                                                     // dark gym interior + a pink mat in the gap
+      ctx.fillStyle = '#17171c'; ctx.fillRect(4, 3, 4, 24);
+      ctx.fillStyle = '#e58fb5'; ctx.fillRect(4, 19, 4, 7);
+    }
+    ctx.fillStyle = '#1b1b22'; ctx.fillRect(13, 12, 2, 7);                          // handle
+    ctx.fillStyle = '#e0a82e'; ctx.fillRect(2, 27, TILE - 4, 4);                    // yellow threshold strip (bottom)
+  } else {
+    ctx.fillStyle = '#44444d'; ctx.fillRect(0, TILE - 6, TILE, 6);                  // wall base shadow (like '#')
+    ctx.fillStyle = '#f1f1ee'; ctx.fillRect(9, 3, 13, 15);                          // usage-rules poster
+    ctx.fillStyle = '#2a2a30'; ctx.fillRect(9, 3, 13, 4);                           // poster header
+    ctx.fillStyle = '#d32f2f'; ctx.fillRect(18, 3, 4, 2);
+    ctx.fillStyle = '#9a9a9a'; for (let i = 0; i < 3; i++) ctx.fillRect(11, 9 + i * 2, 9, 1);
+    ctx.fillStyle = '#b89870'; ctx.fillRect(4, 19, 24, 11);                         // wooden cabinet (front view)
+    ctx.fillStyle = '#9a7e58'; ctx.fillRect(4, 19, 24, 2); ctx.fillRect(15, 21, 2, 9);
+  }
+  ctx.restore();
 }
 
 function drawArrow(glyph, px, py) {                   // exit marker on a path tile
