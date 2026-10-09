@@ -6,6 +6,7 @@ import { dialogue } from './dialogue.js';
 import { intro, escalator } from './intro.js';
 import { drawCharacter } from './sprites.js';
 import { drawGlassFront, drawGlassTops } from './glass.js';
+import { skyline, drawSkyline } from './skyline.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -34,9 +35,13 @@ const COLORS = {
 };
 
 function updateCamera(player) {
-  // center on player, then clamp so we never show outside the map
-  camera.x = Math.max(0, Math.min(player.cx - VW / 2, widthPx - VW));
-  camera.y = Math.max(0, Math.min(player.cy - VH / 2, heightPx - VH));
+  // center on player, then clamp so we never show outside the map...
+  // ...EXCEPT near a rail: skyline.over[side] lets the camera slide past that edge to reveal the city (see skyline.js)
+  skyline.sync();
+  const o = skyline.over, push = skyline.push();            // push = extra nudge toward the rail while leaning out
+  const wantX = player.cx - VW / 2 + push.x, wantY = player.cy - VH / 2 + push.y;
+  camera.x = Math.max(-o.w, Math.min(wantX, widthPx - VW + o.e));
+  camera.y = Math.max(-o.n, Math.min(wantY, heightPx - VH + o.s));
   camera.x = Math.round(camera.x); camera.y = Math.round(camera.y); // avoids seams
 }
 
@@ -158,6 +163,122 @@ function drawPlanter(px, py, tx, ty) {
   ctx.fillStyle = '#8bd18f'; ctx.fillRect(px + 9, py + 7, 3, 2); ctx.fillRect(px + 19, py + 14, 3, 2);
 }
 
+// ---- railings (R): wide grey steel slats (4px slat, 4px gap) between a thin top bar and bottom bar, standing on a
+// weathered board-formed concrete parapet - like the rails in the photos. On the edge of a zone the rail sits on the OUTER
+// 24px of the tile (parapet inside, slats outside) and the gaps show the drop + skyline beyond (see skyline.js).
+// Rails in the middle of a zone get the same slats without the parapet.
+const RC = { slat: '#5a646d', lit: '#8e99a3', dark: '#3b434a', bar: '#a9b2ba', barShade: '#6f7881', post: '#c3c8cb',
+             para: '#a8a69d', cap: '#cdcbc2', seam: 'rgba(40,36,30,0.28)', stain: 'rgba(30,26,20,0.22)' };
+const isRail = (x, y) => getTile(x, y) === 'R';
+
+// One 32px piece of rail in a LOCAL frame: x runs along the rail (0-32), y runs from the outer edge (0) inwards.
+function railPiece(idx, hasPrev, hasNext, slatH, paraH, parapet, seed) {
+  if (parapet) {                                                       // concrete parapet under the slats
+    ctx.fillStyle = RC.para; ctx.fillRect(0, slatH, 32, paraH);
+    ctx.fillStyle = RC.cap; ctx.fillRect(0, slatH, 32, 2);             // lighter cap
+    ctx.fillStyle = RC.seam; ctx.fillRect(0, slatH + 2, 1, paraH - 2); ctx.fillRect(16, slatH + 2, 1, paraH - 2);   // board seams
+    ctx.fillStyle = RC.stain; ctx.fillRect(Math.floor(rnd(seed, 1) * 26) + 3, slatH + paraH - 5, 3, 5);               // weathering
+    ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(0, slatH + paraH - 2, 32, 2);                                    // dark base
+  } else {
+    ctx.fillStyle = '#8a9096'; ctx.fillRect(0, slatH, 32, paraH);      // thin steel base channel
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, slatH + paraH, 32, 2);
+  }
+  for (const x of [2, 10, 18, 26]) {                                   // the slats: lit face on one side, dark edge on the other
+    ctx.fillStyle = RC.slat; ctx.fillRect(x, 2, 4, slatH - 3);
+    ctx.fillStyle = RC.lit;  ctx.fillRect(x, 2, 1, slatH - 3);
+    ctx.fillStyle = RC.dark; ctx.fillRect(x + 3, 2, 1, slatH - 3);
+  }
+  ctx.fillStyle = RC.bar; ctx.fillRect(0, 0, 32, 2); ctx.fillRect(0, slatH - 2, 32, 2);   // top bar, bottom bar
+  ctx.fillStyle = RC.barShade; ctx.fillRect(0, 2, 32, 1);
+  const post = (x) => { ctx.fillStyle = RC.post; ctx.fillRect(x, 0, 3, slatH); ctx.fillStyle = RC.dark; ctx.fillRect(x + 2, 0, 1, slatH); };
+  if (idx % 4 === 0 || !hasPrev) post(0);                              // a post every 4 tiles and at the ends
+  if (!hasNext) post(29);
+}
+function inFrame(m, fn) { ctx.save(); ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]); fn(); ctx.restore(); }
+
+function drawRail(px, py, tx, ty) {
+  const seed = tx * 7 + ty;
+  const edges = [];
+  if (ty === 0) edges.push('n');
+  if (ty === rows - 1) edges.push('s');
+  if (tx === 0) edges.push('w');
+  if (tx === cols - 1) edges.push('e');
+  if (edges.length) {                                                  // on the edge of the zone: parapet + slats, outer side
+    for (const s of edges) {
+      const m = { e: [0, 1, -1, 0, px + TILE, py], w: [0, 1, 1, 0, px, py], n: [1, 0, 0, 1, px, py], s: [1, 0, 0, -1, px, py + TILE] }[s];
+      const horiz = s === 'n' || s === 's';
+      const idx = horiz ? tx : ty;
+      const prev = horiz ? isRail(tx - 1, ty) : isRail(tx, ty - 1), next = horiz ? isRail(tx + 1, ty) : isRail(tx, ty + 1);
+      inFrame(m, () => railPiece(idx, prev, next, 16, 8, true, seed));
+    }
+    return;
+  }
+  let h = isRail(tx - 1, ty) || isRail(tx + 1, ty), v = isRail(tx, ty - 1) || isRail(tx, ty + 1);
+  if (!h && !v) h = true;
+  if (h) inFrame([1, 0, 0, 1, px, py + 6], () => railPiece(tx, isRail(tx - 1, ty), isRail(tx + 1, ty), 16, 3, false, seed));
+  if (v) inFrame([0, 1, 1, 0, px + 6, py], () => railPiece(ty, isRail(tx, ty - 1), isRail(tx, ty + 1), 16, 3, false, seed));
+}
+
+// ---- the rounded nose of the escalator railing (zone 1) ----------------------------------------------------------------
+// Where the two straight rails meet the end rail, they sweep round in one smooth half-ellipse (tiles x 16-18, y 13-17)
+// instead of meeting at a square corner. The black well is clipped to the same curve, with a strip of floor between.
+// It is painted once into an offscreen image and stamped over those tiles every frame.
+// (zones.js: the two corner tiles outside the curve, (18,13) and (18,17), are plain floor.)
+const NOSE = { tx: 16, ty: 13, w: 3, h: 5 };
+const lerpN = (a, b, t) => a + (b - a) * t;
+let noseImg = null;
+function buildNose() {
+  const c = document.createElement('canvas'); c.width = NOSE.w * TILE; c.height = NOSE.h * TILE;
+  const g = c.getContext('2d');
+  const cy = 2 * TILE + 15.5, rx = 79.5, ry = 64;               // centre-line of the rail: top rail y, end rail x (tile 18 centre)
+  g.fillStyle = COLORS.v;                                        // the black well, inset from the rail
+  g.beginPath(); g.ellipse(0, cy, 63.5, 48, 0, -Math.PI / 2, Math.PI / 2); g.closePath(); g.fill();
+
+  const N = 800, pts = []; let len = 0;                          // walk along the curve
+  for (let i = 0; i <= N; i++) {
+    const th = -Math.PI / 2 + Math.PI * i / N, x = rx * Math.cos(th), y = cy + ry * Math.sin(th);
+    const tx = -rx * Math.sin(th), ty = ry * Math.cos(th), tl = Math.hypot(tx, ty);
+    if (i) len += Math.hypot(x - pts[i - 1].x, y - pts[i - 1].y);
+    pts.push({ x, y, ang: Math.atan2(ty, tx), m: tx / tl, s: len });   // m: +1 on the top rail, 0 at the tip, -1 on the bottom rail
+  }
+  const k = Math.max(1, Math.round(len / 8)) * 8 / len;          // stretch so the slats line up with the straight rails at both ends
+  const w = 1.0;
+  for (const p of pts) {
+    const ph = (p.s * k) % 8, t = (p.m + 1) / 2;
+    const ob = lerpN(-6.5, -9.5, t), ib = lerpN(7.5, 4.5, t);   // outer / inner bar (blends from the top-rail layout to the bottom-rail layout)
+    g.save(); g.translate(p.x, p.y); g.rotate(p.ang);            // local x runs along the rail, local y points into the well
+    if (ph >= 2 && ph < 6) {                                     // a slat: lit face on one side, dark edge on the other
+      g.fillStyle = RC.slat; g.fillRect(0, ob + 2, w, ib - ob - 2);
+      if (ph < 3) { g.fillStyle = RC.lit; g.fillRect(0, ob + 2, w, ib - ob - 2); }
+      else if (ph >= 5) { g.fillStyle = RC.dark; g.fillRect(0, ob + 2, w, ib - ob - 2); }
+    }
+    g.fillStyle = RC.bar; g.fillRect(0, ob, w, 2); g.fillRect(0, ib, w, 2);
+    g.fillStyle = RC.barShade; if (p.m >= 0) g.fillRect(0, ob + 2, w, 1); else g.fillRect(0, ib - 1, w, 1);
+    if (p.m > 0.02) {                                            // steel base channel + shadow, on the side the straight rail has it
+      g.fillStyle = '#8a9096'; g.fillRect(0, ib + 2, w, 3 * p.m);
+      g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, ib + 2 + 3 * p.m, w, 2 * p.m);
+    } else if (p.m < -0.02) {
+      const a = -p.m;
+      g.fillStyle = '#8a9096'; g.fillRect(0, ob - 3 * a, w, 3 * a);
+      g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, ob - 5 * a, w, 2 * a);
+    }
+    g.restore();
+  }
+  const tip = pts.reduce((b, p) => (Math.abs(p.s - len / 2) < Math.abs(b.s - len / 2) ? p : b));
+  g.save(); g.translate(tip.x, tip.y); g.rotate(tip.ang);        // one post at the tip of the curve
+  g.fillStyle = RC.post; g.fillRect(-1.5, -9.5, 3, 19); g.fillStyle = RC.dark; g.fillRect(0.5, -9.5, 1, 19);
+  g.restore();
+  return c;
+}
+function drawEscalatorNose(x0, x1, y0, y1) {
+  for (let ty = NOSE.ty; ty < NOSE.ty + NOSE.h; ty++) for (let tx = NOSE.tx; tx < NOSE.tx + NOSE.w; tx++) {
+    if (tx < x0 || tx > x1 || ty < y0 || ty > y1) continue;
+    drawTile('.', tx * TILE, ty * TILE, tx, ty, 0);              // fresh floor under the curve
+  }
+  if (!noseImg) noseImg = buildNose();
+  ctx.drawImage(noseImg, NOSE.tx * TILE, NOSE.ty * TILE);
+}
+
 function drawTile(ch, px, py, tx, ty, time) {
   ctx.fillStyle = COLORS[ch];
   ctx.fillRect(px, py, TILE, TILE);
@@ -171,15 +292,15 @@ function drawTile(ch, px, py, tx, ty, time) {
     ctx.fillRect(px + 6, py + 6, 6, 6); ctx.fillRect(px + 18, py + 16, 6, 6);
   } else if (ch === '#') {
     ctx.fillStyle = '#44444d'; ctx.fillRect(px, py + TILE - 6, TILE, 6);
+    ctx.fillStyle = 'rgba(0,0,0,0.10)'; ctx.fillRect(px + 10, py, 1, TILE - 6); ctx.fillRect(px + 21, py, 1, TILE - 6);   // board-formed concrete seams
+    ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(px + 11, py, 1, TILE - 6); ctx.fillRect(px + 22, py, 1, TILE - 6);
   } else if (ch === 'p' || ch === 'X' || ch === 'U') {  // path: stone slab seams
     ctx.fillStyle = 'rgba(0,0,0,0.12)';
     ctx.fillRect(px, py, TILE, 1); ctx.fillRect(px, py, 1, TILE);
     if ((tx + ty) % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(px, py, TILE, TILE); }
     if (ch !== 'p') drawArrow(ch === 'U' ? '\u2191' : (tx === 0 ? '\u2190' : (ty === rows - 1 ? '\u2193' : '\u2192')), px, py);   // X: west edge = left, bottom edge = down, otherwise right
-  } else if (ch === 'R') {                            // railing: two rails + posts
-    ctx.fillStyle = '#6e6c66';
-    ctx.fillRect(px, py + 8, TILE, 3); ctx.fillRect(px, py + 18, TILE, 3);
-    ctx.fillRect(px + 2, py + 6, 3, 18); ctx.fillRect(px + 27, py + 6, 3, 18);
+  } else if (ch === 'R') {                            // railing: grey steel slats on a concrete parapet
+    drawRail(px, py, tx, ty);
   } else if (ch === 'B') {                            // pool rim: light concrete with seams
     ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(px, py, TILE, 2); ctx.fillRect(px, py, 2, TILE);
   } else if (ch === 'M' || ch === 'G') {              // restroom door with a sign: M = men, W = women
@@ -232,15 +353,18 @@ export function render(game, time) {
   const { player, npc, debug } = game;
   updateCamera(player);
   ctx.clearRect(0, 0, VW, VH);
+  if (skyline.any()) { ctx.fillStyle = '#a9b1b6'; ctx.fillRect(0, 0, VW, VH); }   // safety colour behind the skyline
   ctx.save();
   ctx.translate(-camera.x, -camera.y);               // everything below is in WORLD pixels
+  drawSkyline(ctx, camera, VW, VH, time);            // the city beyond the rails (before the tiles, so the rail slats are see-through)
 
-  // Only draw tiles that are on screen (cheap "culling")
-  const x0 = Math.floor(camera.x / TILE), x1 = Math.min(cols - 1, Math.floor((camera.x + VW) / TILE));
-  const y0 = Math.floor(camera.y / TILE), y1 = Math.min(rows - 1, Math.floor((camera.y + VH) / TILE));
+  // Only draw tiles that are on screen (cheap "culling"); max/min keep us inside the map when the camera slides past an edge
+  const x0 = Math.max(0, Math.floor(camera.x / TILE)), x1 = Math.min(cols - 1, Math.floor((camera.x + VW) / TILE));
+  const y0 = Math.max(0, Math.floor(camera.y / TILE)), y1 = Math.min(rows - 1, Math.floor((camera.y + VH) / TILE));
   for (let ty = y0; ty <= y1; ty++)
     for (let tx = x0; tx <= x1; tx++)
       drawTile(getTile(tx, ty), tx * TILE, ty * TILE, tx, ty, time);
+  if (zoneId === 'zone1') drawEscalatorNose(x0, x1, y0, y1);   // rounded end of the escalator railing
   drawGlassTops(ctx, time, camera, VW, VH);          // glass skylight + the students seen through it (after tiles, before characters)
 
   // Item (ID card): small white card with a bobbing motion
@@ -376,6 +500,8 @@ function drawPlayer(player) {
   if (intro.active) {                                // during the ride, hide everything east of the hatch
     ctx.beginPath(); ctx.rect(0, 0, escalator.hatchLeft, heightPx); ctx.clip();
   }
+  const lean = skyline.bodyShift();                  // leaning out: the sprite shifts a few px toward the rail
+  ctx.translate(lean.x, lean.y);
   if (!drawCharacter(ctx, player)) {                 // sprite not loaded yet -> blue box fallback
     const sx = player.cx - 16, sy = player.cy - 22;
     ctx.fillStyle = '#1976d2'; ctx.fillRect(sx + 6, sy + 8, 20, 24);

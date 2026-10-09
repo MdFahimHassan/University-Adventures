@@ -8,6 +8,7 @@ import { dialogue } from './dialogue.js';
 import { quest } from './quest.js';
 import { render } from './renderer.js';
 import { intro } from './intro.js';
+import { skyline } from './skyline.js';
 
 const game = {
   player: new Player(spawn.x, spawn.y),
@@ -42,6 +43,9 @@ function update(dt) {
     // sitting on a bench: E (or a walk key, after a short moment) gets you back on your feet
     p.sitTime += dt;
     if (input.wasPressed('KeyE') || (p.sitTime > 0.4 && (input.left() || input.right() || input.up() || input.down()))) p.standUp();
+  } else if (skyline.leaning) {
+    // leaning out over a rail: E or walking away lets go
+    if (skyline.wantsRelease(input)) skyline.stopLean();
   } else if (input.wasPressed('KeyE')) {
     if (npcHere && game.npc.isNear(p)) {
       const t = quest.talk();
@@ -49,15 +53,20 @@ function update(dt) {
     } else {
       const seat = findSeat(p.cx, p.cy);               // near a bench? E sits down
       if (seat) p.sitDown(seat);
+      else if (skyline.canLean()) skyline.startLean(p); // touching a rail? E leans out for the full view
     }
   }
-  p.update(dt, !dialogue.active && !p.sitting);
+  p.update(dt, !dialogue.active && !p.sitting && !skyline.leaning);
+  skyline.update(dt, p);                             // how much of the city beyond the rails is revealed
   if (npcHere) game.npc.facePlayer(game.player);     // NPC turns to look at you when you're near
   const tx = Math.floor(game.player.cx / TILE), ty = Math.floor(game.player.cy / TILE);
   const exit = getExit(tx, ty);
   if (exit && exit.to) { transition.start(exit); return; }   // stepped on an exit tile -> fade to the next zone
   game.hint = getExitHint(tx, ty);
-  if (!game.hint && !dialogue.active) game.hint = p.sitting ? '[E] Stand up' : (findSeat(p.cx, p.cy) ? '[E] Sit down' : null);
+  if (!game.hint && !dialogue.active) game.hint = p.sitting ? '[E] Stand up'
+    : skyline.leaning ? '[E] Stop leaning'
+    : findSeat(p.cx, p.cy) ? '[E] Sit down'
+    : skyline.canLean() ? '[E] Lean out' : null;
 
   // Pick up the ID card by walking over it (only once the quest asks for it)
   if (quest.state === 'find') {

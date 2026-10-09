@@ -19,6 +19,8 @@ You arrive on the rooftop by escalator, fading in from the floor below. A studen
 - **NPC with dialogue:** talk to a student, who turns to face you
 - **Mini quest system:** a small state machine with an on-screen quest tracker
 - **Text-based maps:** edit the world by changing characters in `js/map.js`
+- **Skyline view:** rails on the edge of a zone reveal the city beyond: hazy and thin from a distance, wider and clearer as you get close, with a different view on each side (golden hour)
+- **Lean out:** press `E` at a rail for the widest, clearest view
 - **Debug mode:** press `F3` to see the tile grid, solid tiles and collision boxes
 
 ## Controls
@@ -26,7 +28,7 @@ You arrive on the rooftop by escalator, fading in from the floor below. A studen
 | Key | Action |
 |---|---|
 | `W` `A` `S` `D` / Arrow keys | Move |
-| `E` | Talk / advance dialogue |
+| `E` | Talk / advance dialogue / sit / lean out at a rail |
 | `E` / `Space` | Skip the intro |
 | `F3` | Toggle debug view |
 | `C` | Show or hide credits |
@@ -67,6 +69,7 @@ rooftop-game/
     ├── dialogue.js    dialogue box state
     ├── quest.js       quest state machine and NPC lines
     ├── intro.js       escalator opening cutscene
+    ├── skyline.js     city view beyond the rails, camera reveal, lean out
     ├── sprites.js     spritesheet loading and drawing
     ├── input.js       keyboard input
     └── renderer.js    all drawing, camera, HUD, debug view
