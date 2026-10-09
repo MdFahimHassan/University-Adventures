@@ -7,6 +7,7 @@ import { intro, escalator } from './intro.js';
 import { drawCharacter } from './sprites.js';
 import { drawGlassFront, drawGlassTops } from './glass.js';
 import { skyline, drawSkyline } from './skyline.js';
+import { getFloor } from './floor.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -17,7 +18,7 @@ const camera = { x: 0, y: 0 };
 
 // Placeholder colors. Later you can swap these for real sprites.
 const COLORS = {
-  '#': '#5b5b66', '.': '#b8b2a4', '~': '#3a7bd5', 'h': '#2e6b34', 'g': '#4caf50',   // generic
+  '#': '#5b5b66', '.': '#8f8f8b', '~': '#3a7bd5', 'h': '#2e6b34', 'g': '#4caf50',   // generic
   'p': '#a9a28e',                       // path
   'R': '#b8b2a4',                       // railing (floor drawn first, bars on top)
   'S': '#d3d1c7',                       // stairs
@@ -331,11 +332,45 @@ function drawEscalatorNose(x0, x1, y0, y1) {
   ctx.drawImage(noseImg, NOSE.tx * TILE, NOSE.ty * TILE);
 }
 
+// ---- recycling bins: a = blue (recyclable), o = red (non-recyclable) ------------------------------------------------
+// Modelled on the real ones: a bin with a flip-top dome lid and a yellow flap, black rings under the lid and at the bottom,
+// a round label on the front, hanging on a black post over a rectangular black base frame. Each bin fills one tile.
+const BIN = {
+  a: { body: '#2f62b3', lit: '#4a82d2', dark: '#214a8c', lid: '#7d9ed6', lidLit: '#a6bfe6', lidDark: '#5a7cba', label: '#e9f3ea', mark: '#2f9a5d' },
+  o: { body: '#c4372e', lit: '#e0584a', dark: '#942720', lid: '#dd5448', lidLit: '#f08072', lidDark: '#b2352c', label: '#f4eaea', mark: '#c4372e' },
+};
+function drawBin(ch, px, py) {
+  const c = BIN[ch], R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(px + x, py + y, w, h); };
+  ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(px + 16, py + 28, 14, 3.5, 0, 0, Math.PI * 2); ctx.fill();   // floor shadow
+  R(4, 25, 24, 4, '#1b1d21'); R(6, 26, 20, 2, '#3b3e45');                      // base frame (dark tray with a lighter inside)
+  R(14, 21, 4, 5, '#1b1d21'); R(15, 21, 1, 5, '#454850');                      // post
+  for (let y = 11; y <= 22; y++) {                                              // body: slightly tapered, lit on the left, shaded on the right
+    const t = Math.floor((y - 11) / 6), x0 = 7 + t, x1 = 25 - t;
+    R(x0, y, x1 - x0, 1, c.body); R(x0, y, 2, 1, c.lit); R(x1 - 2, y, 2, 1, c.dark);
+  }
+  R(10, 21, 12, 2, '#1b1d21'); R(11, 21, 10, 1, '#3b3e45');                      // black ring at the bottom
+  const lidRows = [[10, 22], [8, 24], [7, 25], [7, 25], [7, 25], [7, 25]];     // dome lid (y 4-9)
+  lidRows.forEach(([x0, x1], i) => { R(x0, 4 + i, x1 - x0, 1, c.lid); R(x0, 4 + i, 2, 1, c.lidLit); R(x1 - 2, 4 + i, 2, 1, c.lidDark); });
+  R(11, 4, 10, 1, c.lidLit);                                                     // light along the top of the dome
+  R(12, 1, 10, 2, '#e8c23c'); R(11, 3, 12, 1, '#c99f22'); R(13, 1, 4, 1, '#f6dc72');   // yellow flap on top, tilted open
+  R(6, 10, 20, 2, '#1b1d21'); R(7, 10, 18, 1, '#3b3e45');                        // black ring under the lid
+  ctx.fillStyle = c.label; ctx.beginPath(); ctx.arc(px + 16, py + 17, 4.6, 0, Math.PI * 2); ctx.fill();   // round label on the front
+  ctx.fillStyle = c.mark; ctx.beginPath(); ctx.arc(px + 16, py + 17, 3, 0, Math.PI * 2); ctx.fill();        // its symbol: green ring (recycle) / red ring
+  ctx.fillStyle = c.label; ctx.beginPath(); ctx.arc(px + 16, py + 17, 1.4, 0, Math.PI * 2); ctx.fill();
+  if (ch === 'a') { R(13, 16, 1, 1, c.label); R(18, 18, 1, 1, c.label); R(16, 14, 1, 1, c.label); }           // little gaps in the ring = recycling arrows
+}
+
+// Tiles that stand on the grey stone paving (see floor.js). Everything else keeps its flat colour from COLORS.
+const STONE_FLOOR = '.pXURCTao';
 function drawTile(ch, px, py, tx, ty, time) {
-  ctx.fillStyle = COLORS[ch];
-  ctx.fillRect(px, py, TILE, TILE);
-  if (ch === '.' && (tx + ty) % 2 === 0) {           // checker = stone tiles
-    ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.fillRect(px, py, TILE, TILE);
+  if (STONE_FLOOR.includes(ch)) {
+    ctx.drawImage(getFloor(zoneId, cols, rows), px, py, TILE, TILE, px, py, TILE, TILE);   // 32x32 piece of the pre-painted stone floor
+  } else {
+    ctx.fillStyle = COLORS[ch];
+    ctx.fillRect(px, py, TILE, TILE);
+  }
+  if (ch === '.') {
+    // plain stone floor: nothing to add (the texture is already in the floor canvas)
   } else if (ch === '~') {                           // moving ripple line
     ctx.fillStyle = 'rgba(255,255,255,0.25)';
     ctx.fillRect(px + 4 + Math.sin(time * 2 + tx) * 4, py + 14, 16, 3);
@@ -346,10 +381,7 @@ function drawTile(ch, px, py, tx, ty, time) {
     ctx.fillStyle = '#44444d'; ctx.fillRect(px, py + TILE - 6, TILE, 6);
     ctx.fillStyle = 'rgba(0,0,0,0.10)'; ctx.fillRect(px + 10, py, 1, TILE - 6); ctx.fillRect(px + 21, py, 1, TILE - 6);   // board-formed concrete seams
     ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(px + 11, py, 1, TILE - 6); ctx.fillRect(px + 22, py, 1, TILE - 6);
-  } else if (ch === 'p' || ch === 'X' || ch === 'U') {  // path: stone slab seams
-    ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    ctx.fillRect(px, py, TILE, 1); ctx.fillRect(px, py, 1, TILE);
-    if ((tx + ty) % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(px, py, TILE, TILE); }
+  } else if (ch === 'p' || ch === 'X' || ch === 'U') {  // old path tiles now just look like the stone floor; exits keep their arrow
     if (ch !== 'p') drawArrow(ch === 'U' ? '\u2191' : (tx === 0 ? '\u2190' : (ty === rows - 1 ? '\u2193' : '\u2192')), px, py);   // X: west edge = left, bottom edge = down, otherwise right
   } else if (ch === 'R') {                            // railing: grey steel slats on a concrete parapet
     drawRail(px, py, tx, ty);
@@ -372,6 +404,8 @@ function drawTile(ch, px, py, tx, ty, time) {
       ctx.fillStyle = 'rgba(0,0,0,0.10)';
       ctx.fillRect(px + 6 + (tx % 3) * 5, py + 8, 2, 4); ctx.fillRect(px + 20 - (ty % 3) * 4, py + 20, 2, 4);
     }
+  } else if (ch === 'a' || ch === 'o') {              // recycling bins (blue / red)
+    drawBin(ch, px, py);
   } else if (ch === 'C') {                            // concrete bench
     drawBench(px, py, tx, ty);
   } else if (ch === 'T') {                            // tree in a grey planter box

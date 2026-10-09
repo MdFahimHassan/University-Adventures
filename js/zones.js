@@ -2,7 +2,9 @@
 // Every row of a zone must be the SAME length. Markers (P spawn, N npc, I item) become floor when parsed.
 //
 // Tiles shared by all zones:
-//   #  wall (solid)        R  railing (solid)      .  open floor        p  path (walkable)
+//   #  wall (solid)        R  railing (solid)      .  open floor (grey stone paving, see floor.js)
+//   a  blue recycling bin (solid)   o  red non-recyclable bin (solid)  - zone 1, side by side above the left end of the escalator rail
+//   p  old "path" tile (walkable). Zone 1 no longer uses it; in other zones it now just looks like the stone floor
 //   X  exit path           U  "up" path            S  stairs            D  store room door (solid)
 //   L  lift (solid)        E/F escalators (solid, animated)             v  escalator well (solid)
 //   W  raised glass skylight (solid, see-through to the floor below)
@@ -23,6 +25,8 @@
 //   facing  = direction the player looks on arrival     label = text shown for exits that don't lead anywhere yet
 export const ZONES = {
   // Zone 1 is 38 tiles wide and 30 tall.
+  // NOTE: all the stone paths (p) were removed from this zone - it is now one open stone floor. Exits (X / U / S) are unchanged.
+  // The path notes below (x 7-8 path, x 27-28 walkway, 'path p' gaps...) still describe WHERE those lanes were, but they are plain floor now.
   //   - rows 9-20 (middle): the glass skylight (x 21-26) and the fenced bush bed (x 29-37) have the same height,
   //     so they sit side by side in the vertical middle of the map
   //   - rows 13-17 (left): escalator + lifts + the student. Exits to the pool zone are at x 0, rows 11 and 19
@@ -42,34 +46,34 @@ export const ZONES = {
     name: 'Rooftop Entry',
     rows: [
     "#..USSSSSSSSSSSS.U#DD#YYHZHUURRRRRRRRR",
-    "#..pSppppppppppS.pppppYZHYHppHH......R",
-    "#..pppppppppppppppppppYYHHZppHH..CCC.R",
-    "#......pp.............YHHHYppHH..CTC.R",
-    "#......pp.............HZHYZppHH..CTC.R",
-    "#......pp.............YYHYHppHH..CCC.R",
-    "#......pp..................ppppp.....R",
-    "#......pp..................ppppp.....R",
-    "#......pp....................HHYHYYHZ#",
-    "#......pp............WWWWWW..YZHZHYHH#",
-    "#......pp............WWWWWW..YHHHYHYH#",
-    "Xpppppppp............WWWWWW..HHZHHHZH#",
-    "#..ppppppppppppppppppWWWWWW..HHHHHYHY#",
-    "#LLppppppRRRRRRRRR...WWWWWW..ZYHZHHHH#",
-    "#......pp.PEEEEEvvR..WWWWWW..YHYHHZHY#",
-    "#.....NppRRvvvvvvvR..WWWWWW..HHHHYHYH#",
-    "#......pp..FFFFFvvR..WWWWWW..ZYHHHHHH#",
-    "#LLppppppRRRRRRRRR...WWWWWW..HHZHHHHH#",
-    "#..ppppppppppppppppppWWWWWW..HHYYHHYH#",
-    "Xpppppp..............WWWWWW..ZYYYHYZH#",
+    "#...S..........S......YZHYH..HH......R",
+    "#.....................YYHHZ..HH..CCC.R",
+    "#.....................YHHHY..HH..CTC.R",
+    "#.....................HZHYZ..HH..CTC.R",
+    "#.....................YYHYH..HH..CCC.R",
+    "#....................................R",
+    "#....................................R",
+    "#............................HHYHYYHZ#",
+    "#....................WWWWWW..YZHZHYHH#",
+    "#....................WWWWWW..YHHHYHYH#",
+    "X....................WWWWWW..HHZHHHZH#",
+    "#........ao..........WWWWWW..HHHHHYHY#",
+    "#LL......RRRRRRRRR...WWWWWW..ZYHZHHHH#",
+    "#.........PEEEEEvvR..WWWWWW..YHYHHZHY#",
+    "#.....N..RRvvvvvvvR..WWWWWW..HHHHYHYH#",
+    "#..........FFFFFvvR..WWWWWW..ZYHHHHHH#",
+    "#LL......RRRRRRRRR...WWWWWW..HHZHHHHH#",
+    "#....................WWWWWW..HHYYHHYH#",
+    "X....................WWWWWW..ZYYYHYZH#",
     "#....................WWWWWW..HYHHHHHY#",
     "#............................HHHYYHYH#",
-    "#.............I..............ppp.....R",
-    "#............................ppp.....R",
-    "JrpHHYYHHYHYHZYHYYHHZHHYHZY..HH..CCC.R",
-    "QrpHHHHHHHZHHYYHHYHYHHZHYYY..HH..CTC.R",
-    "JrpHZHHHHHHHZHYHHZYHHYHHHYH..HH..CTC.R",
-    "#ppYYHHYYZYHHYHYYYYYYHYYHHY..HH..CCC.R",
-    "XppHHHHHHYYHHHYHHYHHYYZYHZY..HH......R",
+    "#.............I......................R",
+    "#....................................R",
+    "Jr.HHYYHHYHYHZYHYYHHZHHYHZY..HH..CCC.R",
+    "Qr.HHHHHHHZHHYYHHYHYHHZHYYY..HH..CTC.R",
+    "Jr.HZHHHHHHHZHYHHZYHHYHHHYH..HH..CTC.R",
+    "#..YYHHYYZYHHYHYYYYYYHYYHHY..HH..CCC.R",
+    "X..HHHHHHYYHHHYHHYHHYYZYHZY..HH......R",
     "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
     ],
     exits: {
