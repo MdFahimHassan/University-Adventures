@@ -26,6 +26,7 @@ const COLORS = {
   'L': '#7d8aa0',                       // lift
   'D': '#9c6428',                       // store room door
   'E': '#030305', 'F': '#030305',       // escalators: painted over by drawWell() (escalator.js) - black here just in case
+  'c': '#8f8f8b',                       // pillar: stone floor under it, drawn by drawPillar
   'v': '#030305',                       // escalator well = black void (the floor below)
   'X': '#a9a28e', 'U': '#a9a28e',       // exit paths (arrow drawn on top)
   'B': '#d9dde0',                       // pool rim / lawn border
@@ -353,6 +354,25 @@ function drawEscalatorNose(x0, x1, y0, y1, time) {
   ctx.drawImage(noseImg, NOSE.tx * TILE, NOSE.ty * TILE);
 }
 
+// ---- pillars (c): the steel-blue columns of the rooftop shelter -----------------------------------------------------
+// They run from the floor up to the roof, so seen from above (the roof is not drawn) a pillar is just its square cross-section:
+// a dark steel-blue square with a pale concrete border (the plinth) around it and a soft shadow on the floor.
+function drawPillar(px, py, tx, ty) {
+  const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(px + x, py + y, w, h); };
+  R(4, 4, 28, 28, 'rgba(0,0,0,0.20)');                                // soft shadow to the south-east
+  R(2, 2, 28, 28, '#a9a69d');                                         // concrete plinth: outline,
+  R(3, 3, 26, 26, '#d8d5cc');                                         //   pale top face,
+  R(3, 3, 26, 1, '#ecebe4'); R(3, 3, 1, 26, '#e6e4dc');               //   lit top / left edge,
+  R(3, 28, 26, 1, '#bdbab1'); R(28, 3, 1, 26, '#c4c1b8');             //   shaded bottom / right edge
+  R(6, 6, 20, 20, '#1b2436');                                         // the column: dark outline,
+  R(7, 7, 18, 18, '#2f3d57');                                         //   steel-blue face,
+  R(7, 7, 18, 2, '#4a5d80'); R(7, 7, 2, 18, '#415473');               //   lit top / left bevel,
+  R(7, 23, 18, 2, '#1f2a3f'); R(23, 7, 2, 18, '#222e45');             //   shaded bottom / right bevel
+  R(11, 11, 10, 10, '#2a3850');                                       //   slightly recessed middle
+  if ((tx * 5 + ty * 3) % 2 === 0) { R(13, 13, 1, 4, '#3d4d6b'); R(17, 17, 2, 1, '#3d4d6b'); R(5, 24, 3, 1, '#9b988f'); }          // paint / concrete wear
+  else                              { R(15, 12, 1, 3, '#3d4d6b'); R(12, 17, 3, 1, '#27344d'); R(24, 4, 3, 1, '#b3b0a7'); }
+}
+
 // ---- recycling bins: a = blue (recyclable), o = red (non-recyclable) ------------------------------------------------
 // Modelled on the real ones: a bin with a flip-top dome lid and a yellow flap, black rings under the lid and at the bottom,
 // a round label on the front, hanging on a black post over a rectangular black base frame. Each bin fills one tile.
@@ -382,7 +402,7 @@ function drawBin(ch, px, py) {
 }
 
 // Tiles that stand on the grey stone paving (see floor.js). Everything else keeps its flat colour from COLORS.
-const STONE_FLOOR = '.pXURCTao';
+const STONE_FLOOR = '.pXURCTaoc';
 function drawTile(ch, px, py, tx, ty, time) {
   if (STONE_FLOOR.includes(ch)) {
     ctx.drawImage(getFloor(zoneId, cols, rows), px, py, TILE, TILE, px, py, TILE, TILE);   // 32x32 piece of the pre-painted stone floor
@@ -425,6 +445,8 @@ function drawTile(ch, px, py, tx, ty, time) {
       ctx.fillStyle = 'rgba(0,0,0,0.10)';
       ctx.fillRect(px + 6 + (tx % 3) * 5, py + 8, 2, 4); ctx.fillRect(px + 20 - (ty % 3) * 4, py + 20, 2, 4);
     }
+  } else if (ch === 'c') {                            // pillar
+    drawPillar(px, py, tx, ty);
   } else if (ch === 'a' || ch === 'o') {              // recycling bins (blue / red)
     drawBin(ch, px, py);
   } else if (ch === 'C') {                            // concrete bench

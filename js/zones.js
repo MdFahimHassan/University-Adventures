@@ -4,6 +4,7 @@
 // Tiles shared by all zones:
 //   #  wall (solid)        R  railing (solid)      .  open floor (grey stone paving, see floor.js)
 //   a  blue recycling bin (solid)   o  red non-recyclable bin (solid)  - zone 1, side by side above the left end of the escalator rail
+//   c  steel-blue pillar on a concrete plinth (solid) - zone 1: two rows (9 and 21), 6 tiles above / below the escalator
 //   p  old "path" tile (walkable). Zone 1 no longer uses it; in other zones it now just looks like the stone floor
 //   X  exit path           U  "up" path            S  stairs            D  store room door (solid)
 //   L  lift (solid)        E/F escalators (solid, animated)             v  escalator well (solid)
@@ -25,6 +26,7 @@
 //   facing  = direction the player looks on arrival     label = text shown for exits that don't lead anywhere yet
 export const ZONES = {
   // Zone 1 is 38 tiles wide and 30 tall.
+  // Pillars (c): rows 9 and 21, x = 3, 7, 11, 15, 19 and 28 (the hedge bed's left end). The row skips the skylight (x 21-26).
   // NOTE: all the stone paths (p) were removed from this zone - it is now one open stone floor. Exits (X / U / S) are unchanged.
   // The path notes below (x 7-8 path, x 27-28 walkway, 'path p' gaps...) still describe WHERE those lanes were, but they are plain floor now.
   //   - rows 9-20 (middle): the glass skylight (x 21-26) and the fenced bush bed (x 29-37) have the same height,
@@ -54,7 +56,7 @@ export const ZONES = {
     "#....................................R",
     "#....................................R",
     "#............................HHYHYYHZ#",
-    "#....................WWWWWW..YZHZHYHH#",
+    "#..c...c...c...c...c.WWWWWW.cYZHZHYHH#",
     "#....................WWWWWW..YHHHYHYH#",
     "X....................WWWWWW..HHZHHHZH#",
     "#........ao..........WWWWWW..HHHHHYHY#",
@@ -66,7 +68,7 @@ export const ZONES = {
     "#....................WWWWWW..HHYYHHYH#",
     "X....................WWWWWW..ZYYYHYZH#",
     "#....................WWWWWW..HYHHHHHY#",
-    "#............................HHHYYHYH#",
+    "#..c...c...c...c...c........cHHHYYHYH#",
     "#.............I......................R",
     "#....................................R",
     "Jr.HHYYHHYHYHZYHYYHHZHHYHZY..HH..CCC.R",
