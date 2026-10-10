@@ -1,6 +1,10 @@
 // player.js - position, movement, and X/Y-separated collision.
-import { TILE, boxHitsSolid, widthPx, heightPx } from './map.js';
+import { TILE, boxHitsSolid, solidRectsAt, isStairs } from './map.js';
 import { input } from './input.js';
+
+const STAIR_SPEED = 0.85;   // walking speed on the stairs (1 = same as flat ground)
+const STAIR_BOB = 2;       // how many px the body lifts on each step
+const STEP_PX = 16;        // one stair step = 16px (two per tile)
 
 export class Player {
   constructor(tx, ty) {
@@ -14,6 +18,8 @@ export class Player {
     this.sitting = false;                    // true while sitting on a bench
     this.sitTime = 0;                        // seconds spent sitting (so a held walk key doesn't stand you up instantly)
     this.preSit = null;                      // where we stood before sitting (we go back there when standing up)
+    this.onStairs = false;                   // true while the feet are on a stair flight (slower, and the sprite bobs with each step)
+    this.stepDist = 0;                       // pixels walked on stairs (drives the step bob: one bob per 16px = one stair step)
   }
   // Sit on a bench tile found by findSeat(): the sprite's sitting pose is drawn by sprites.js
   sitDown(seat) {
@@ -40,22 +46,38 @@ export class Player {
     if (dx < 0) this.facing = 'left'; else if (dx > 0) this.facing = 'right';
     else if (dy < 0) this.facing = 'up'; else if (dy > 0) this.facing = 'down';
 
+    // Walking on a stair flight is a little slower than on the flat (so the steps are felt, but not a lot)
+    this.onStairs = isStairs(Math.floor(this.cx / TILE), Math.floor((this.y + this.h - 2) / TILE));
+    const speed = this.onStairs ? this.speed * STAIR_SPEED : this.speed;
+
     // --- X axis first: move, then undo overlap ---
-    this.x += dx * this.speed * dt;
-    if (boxHitsSolid(this.x, this.y, this.w, this.h)) {
-      // snap flush against the tile edge we ran into
-      if (dx > 0) this.x = Math.floor((this.x + this.w) / TILE) * TILE - this.w;
-      else if (dx < 0) this.x = (Math.floor(this.x / TILE) + 1) * TILE;
+    this.x += dx * speed * dt;
+    let hit = solidRectsAt(this.x, this.y, this.w, this.h);
+    if (hit.length) {
+      // snap flush against the nearest edge we ran into (a whole tile, or a thin wall like a stair handrail)
+      if (dx > 0) this.x = Math.min(...hit.map((r) => r.x)) - this.w;
+      else if (dx < 0) this.x = Math.max(...hit.map((r) => r.x + r.w));
     }
     // --- then Y axis: doing them separately lets you SLIDE along walls ---
-    this.y += dy * this.speed * dt;
-    if (boxHitsSolid(this.x, this.y, this.w, this.h)) {
-      if (dy > 0) this.y = Math.floor((this.y + this.h) / TILE) * TILE - this.h;
-      else if (dy < 0) this.y = (Math.floor(this.y / TILE) + 1) * TILE;
+    this.y += dy * speed * dt;
+    hit = solidRectsAt(this.x, this.y, this.w, this.h);
+    if (hit.length) {
+      if (dy > 0) this.y = Math.min(...hit.map((r) => r.y)) - this.h;
+      else if (dy < 0) this.y = Math.max(...hit.map((r) => r.y + r.h));
     }
 
     // walking animation only plays if we actually moved (not when pushing against a wall)
-    this.moving = Math.hypot(this.x - ox, this.y - oy) > 0.01;
-    this.animTime = this.moving ? this.animTime + dt : 0;
+    const moved = Math.hypot(this.x - ox, this.y - oy);
+    this.moving = moved > 0.01;
+    this.animTime = this.moving ? this.animTime + dt * (this.onStairs ? STAIR_SPEED : 1) : 0;   // slower legs on the stairs too
+    this.stepDist = this.onStairs ? this.stepDist + moved : 0;
+  }
+
+  // How far (px, negative = up) the sprite is lifted right now: on a stair flight each step lifts the body a touch and lets it
+  // settle again, once per 16px walked (= the height of one stair step as drawn by renderer.js drawFlight).
+  get stairBob() {
+    if (!this.onStairs || !this.moving) return 0;
+    const k = (this.stepDist % STEP_PX) / STEP_PX;                 // 0..1 through the current step
+    return -Math.round(Math.sin(k * Math.PI) * STAIR_BOB);
   }
 }

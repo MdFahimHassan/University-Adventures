@@ -23,6 +23,7 @@ const COLORS = {
   'p': '#a9a28e',                       // path
   'R': '#b8b2a4',                       // railing (floor drawn first, bars on top)
   'S': '#d3d1c7',                       // stairs
+  '1': '#8f8f8b', '2': '#8f8f8b', '3': '#8f8f8b', '4': '#8f8f8b', '5': '#8f8f8b', '6': '#8f8f8b', '7': '#8f8f8b', '8': '#8f8f8b', 'q': '#a6a49c', 'm': '#8f8f8b',   // amphitheatre tiers (and 'm' = their flat base slab): stone floor under them, slabs drawn by drawTier
   'L': '#7d8aa0',                       // lift
   'D': '#9c6428',                       // store room door
   'E': '#030305', 'F': '#030305',       // escalators: painted over by drawWell() (escalator.js) - black here just in case
@@ -401,8 +402,82 @@ function drawBin(ch, px, py) {
   if (ch === 'a') { R(13, 16, 1, 1, c.label); R(18, 18, 1, 1, c.label); R(16, 14, 1, 1, c.label); }           // little gaps in the ring = recycling arrows
 }
 
+
+// ---- amphitheatre tiers (A) + railed stair flights (S, zone 1) ---------------------------------------------------------
+// Zone 1's upper section copies the real rooftop: two stair flights (each with a silver handrail down the middle) with wide,
+// tall concrete tiers between and beside them. Every row of tiers is one step: pale tread on top, darker riser below, and the
+// bottom corners of a tier block are rounded wherever the block ends (like the "D"-shaped ends in the photos).
+// level of whatever is at (x, y) as seen from a tier: 1-3 = tier, 9 = hedge / wall (never rounded, no side face), 0 = floor / stairs
+const tierLevel = (x, y) => {
+  const c = getTile(x, y);
+  if (c >= '1' && c <= '8' && c.length === 1) return +c;
+  if (c === 'm') return 1;                                                  // flat base slab: same height as the lowest tier
+  return (c === 'H' || c === 'Y' || c === 'Z' || c === '#' || c === 'D' || c === 'q') ? 9 : 0;
+};
+// base = true: the flat base slab ('m') at the foot of a flight of tiers. It is one straight, square-cut tile (no rounded ends, no
+// stepping) - the stepped layers and their risers start on the tile ABOVE it, and its front face lines up with the semi-wall's.
+function drawTier(px, py, tx, ty, L, base = false) {
+  const n = tierLevel(tx, ty - 1), s = tierLevel(tx, ty + 1), w = tierLevel(tx - 1, ty), e = tierLevel(tx + 1, ty);
+  const onBase = base || getTile(tx, ty + 1) === 'm';                      // base slab, or the tile sitting right on it: square bottom corners
+  const R = 20, drop = (v) => v < L;                                       // a face shows wherever the neighbour is lower
+  const rad = (a, b, bottom = false) => (drop(a) && drop(b) && !(bottom && onBase) ? R : 0);   // round a corner when BOTH its sides drop away
+  const riser = drop(s) ? 9 : 0, lit = 20 * (Math.min(L, 7) - 1);
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(px, py, TILE, TILE, [rad(n, w), rad(n, e), rad(s, e, true), rad(s, w, true)]); ctx.clip();
+  ctx.fillStyle = '#6f6d66'; ctx.fillRect(px, py, TILE, TILE);             // face colour (shows wherever nothing else is painted)
+  ctx.fillStyle = `rgb(${142 + lit / 2},${140 + lit / 2},${133 + lit / 2})`; ctx.fillRect(px, py, TILE, TILE - riser);   // tread: higher steps are a touch lighter
+  for (let i = 0; i < 5; i++) { ctx.fillStyle = i % 2 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.12)'; ctx.fillRect(px + 2 + Math.floor(rnd(tx, ty, i) * 28), py + 3 + Math.floor(rnd(tx, ty, i + 20) * 16), 2, 1); }
+  if (drop(n)) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(px, py, TILE, 2); }                  // lit back edge
+  if (drop(w)) { ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(px, py, 2, TILE - riser); }          // lit west edge
+  if (drop(e)) { ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.fillRect(px + TILE - 4, py, 4, TILE); }             // shaded east wall
+  if (riser) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(px, py + TILE - riser, TILE, 2); }           // tread/riser crease
+  ctx.restore();
+}
+
+// ---- semi-wall (q): the low concrete planter wall around the hedge beds (zone 1) ----------------------------------------
+// Same board-formed concrete as the '#' walls (vertical seams, darker base), a touch lighter so it reads as a low wall, with a lit
+// cap on top and a darker front face wherever the wall faces open floor to the south.
+const isSemi = (x, y) => getTile(x, y) === 'q';
+function drawSemiWall(px, py, tx, ty, base = false) {   // base = the 'm' slab at the foot of the tiers: same drawing, but no lit cap line on top
+  const front = !isSemi(tx, ty + 1) && getTile(tx, ty + 1) !== '#', capTop = !base && !isSemi(tx, ty - 1) && ty > 0 && !isPlanted(tx, ty - 1);
+  const body = TILE - (front ? 9 : 0), floorAt = (x, y) => tierLevel(x, y) === 0;
+  ctx.fillStyle = '#a6a49c'; ctx.fillRect(px, py, TILE, TILE);                                         // cap / top surface: same warm concrete as the stairs
+  ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fillRect(px + 10, py, 1, body); ctx.fillRect(px + 21, py, 1, body);   // board-formed seams (as on '#')
+  ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(px + 11, py, 1, body); ctx.fillRect(px + 22, py, 1, body);
+  for (let i = 0; i < 4; i++) { ctx.fillStyle = i % 2 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.12)'; ctx.fillRect(px + 2 + Math.floor(rnd(tx, ty, i) * 28), py + 3 + Math.floor(rnd(tx, ty, i + 20) * Math.max(1, body - 6)), 2, 1); }   // speckle (as on the tiers)
+  if (floorAt(tx - 1, ty)) { ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(px, py, 2, body); }  // lit west edge
+  if (floorAt(tx + 1, ty)) { ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.fillRect(px + TILE - 4, py, 4, TILE); }   // shaded east wall
+  if (capTop) { ctx.fillStyle = 'rgba(255,255,255,0.30)'; ctx.fillRect(px, py, TILE, 2); }
+  if (front) {
+    ctx.fillStyle = '#6f6d66'; ctx.fillRect(px, py + body, TILE, 9);                                    // front face: same shade as the tiers' risers
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(px, py + body, TILE, 2);                           // cap/face crease
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(px + 11, py + body, 1, 9); ctx.fillRect(px + 22, py + body, 1, 9);
+    ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(px + 10, py + body, 1, 9); ctx.fillRect(px + 21, py + body, 1, 9);
+  }
+}
+function drawFlight(px, py, tx, ty) {
+  const top = getTile(tx, ty - 1) !== 'S', bottom = getTile(tx, ty + 1) !== 'S';
+  for (let i = 0; i < 2; i++) {                                            // two small steps per tile (the flight's steps are smaller than the tiers')
+    const y = py + i * 16;
+    ctx.fillStyle = '#bdbab0'; ctx.fillRect(px, y, TILE, 11);               // tread
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fillRect(px, y, TILE, 1);
+    ctx.fillStyle = '#77746c'; ctx.fillRect(px, y + 11, TILE, 5);           // riser
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(px, y + 11, TILE, 1);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(px, py, 2, TILE);        // side shade where the flight meets the tiers
+  ctx.fillRect(px + TILE - 2, py, 2, TILE);
+  if (getTile(tx - 1, ty) === 'S') {                                        // handrail down the middle of the flight (the 2 lanes meet here)
+    const x = px - 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(x + 2, py + (top ? 2 : 0), 5, TILE - (top ? 2 : 0));   // shadow
+    ctx.fillStyle = '#9aa2a8'; ctx.fillRect(x, py, 4, TILE);
+    ctx.fillStyle = '#e3e7ea'; ctx.fillRect(x + 1, py, 2, TILE);
+    if (top)    { ctx.fillStyle = '#eef1f3'; ctx.fillRect(x - 1, py, 6, 4); ctx.fillStyle = '#7d858b'; ctx.fillRect(x - 1, py + 3, 6, 1); }   // end posts
+    if (bottom) { ctx.fillStyle = '#eef1f3'; ctx.fillRect(x - 1, py + TILE - 5, 6, 5); ctx.fillStyle = '#7d858b'; ctx.fillRect(x - 1, py + TILE - 2, 6, 2); }
+  }
+}
+
 // Tiles that stand on the grey stone paving (see floor.js). Everything else keeps its flat colour from COLORS.
-const STONE_FLOOR = '.pXURCTaoc';
+const STONE_FLOOR = '.pXURCTaoc12345678m';
 function drawTile(ch, px, py, tx, ty, time) {
   if (STONE_FLOOR.includes(ch)) {
     ctx.drawImage(getFloor(zoneId, cols, rows), px, py, TILE, TILE, px, py, TILE, TILE);   // 32x32 piece of the pre-painted stone floor
@@ -460,6 +535,14 @@ function drawTile(ch, px, py, tx, ty, time) {
   } else if (ch === 'K') {                            // storage room block: roof edge on top, shadow below
     ctx.fillStyle = '#6a6a76'; ctx.fillRect(px, py, TILE, 3);
     ctx.fillStyle = '#3b3b45'; ctx.fillRect(px, py + TILE - 6, TILE, 6);
+  } else if (ch >= '1' && ch <= '8') {                // amphitheatre tier (zone 1, upper section)
+    drawTier(px, py, tx, ty, +ch);
+  } else if (ch === 'm') {                            // flat base slab under the outer tier flights
+    drawSemiWall(px, py, tx, ty, true);               // exactly the semi-wall's colour + texture, so wall and base read as one piece
+  } else if (ch === 'q') {                            // hedge semi-wall
+    drawSemiWall(px, py, tx, ty);
+  } else if (ch === 'S' && zoneId === 'zone1') {      // zone 1: the two railed stair flights
+    drawFlight(px, py, tx, ty);
   } else if (ch === 'S') {                            // stairs: horizontal steps
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     for (let i = 0; i < 4; i++) ctx.fillRect(px, py + i * 8 + 6, TILE, 2);
@@ -626,7 +709,7 @@ function drawPlayer(player) {
     ctx.translate(cx, cy); ctx.scale(k, k); ctx.translate(-cx, -cy);
   }
   const lean = skyline.bodyShift();                  // leaning out: the sprite shifts a few px toward the rail
-  ctx.translate(lean.x, lean.y);
+  ctx.translate(lean.x, lean.y + (intro.active ? 0 : player.stairBob));   // on the stairs: the body lifts a little with every step
   if (!drawCharacter(ctx, player)) {                 // sprite not loaded yet -> blue box fallback
     const sx = player.cx - 16, sy = player.cy - 22;
     ctx.fillStyle = '#1976d2'; ctx.fillRect(sx + 6, sy + 8, 20, 24);

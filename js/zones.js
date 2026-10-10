@@ -9,6 +9,10 @@
 //   X  exit path           U  "up" path            S  stairs            D  store room door (solid)
 //   L  lift (solid)        E/F escalators (solid, animated)             v  escalator well (solid)
 //   W  raised glass skylight (solid, see-through to the floor below)
+//   1-6    amphitheatre sitting tiers (solid), 1 = lowest step, 6 = highest - zone 1 upper section; corners are rounded where a block sticks out
+//   q      semi-wall (solid): low board-formed concrete planter wall around the zone 1 hedge beds
+//   m      flat base slab (solid): the one straight tile at the foot of each outer tier block (zone 1) - same look as the semi-wall; the stepped layers start on the row above it
+//   7, 8   extra-high tiers (same as 1-6, just higher): they let every column of an outer tier block step down on the SAME rows
 // New in zone 4:
 //   C  concrete bench (solid)   T  tree in a grey planter box (solid)   b  bush (WALKABLE - you can walk into it)
 // Planted areas with a pale guard rail (all solid; the rail is drawn automatically on every edge that faces open floor):
@@ -26,6 +30,16 @@
 //   facing  = direction the player looks on arrival     label = text shown for exits that don't lead anywhere yet
 export const ZONES = {
   // Zone 1 is 38 tiles wide and 30 tall.
+  // UPPER SECTION (rows 0-6): an amphitheatre copied from the real rooftop. Hedge beds run all the way to the top edge (they are part of the lawn above).
+  //   x1 walkway (the only up-path) | x2 semi-wall (q) | x3-4 left hedge | x5-16 amphitheatre | x17-19 right hedge | x20 semi-wall (q)
+  //   x21-23 open in front of the storage room (grey block, DOOR in the middle at x22, grey block on each side; row 0) | x24-26 hedge bed
+  //   Semi-wall (q): x2 and x20 run from row 0 down to row 6, and row 6 (x2-4, x17-20) closes the front of each hedge bed (hedges: rows 0-5).
+  //   The outer tier blocks (x5-7, x14-16) end on row 6 with a flat base slab (m) so the wall and the steps share one straight front edge.
+  //   Amphitheatre: tiers 1-6 are the big sitting steps (1 = lowest, 6 = highest). A tile's level = how many columns it is from the
+  //   pit / flight + how many rows it is below row 5 (capped at 6), so the steps climb both outwards and towards the lawn.
+  //   The pit is open to the south. Two small railed flights (S, x8-9 and x12-13, rows 0-4) climb from the back of the pit to the lawn;
+  //   the handrail between the two lanes of each flight is solid (see map.js buildThinWalls). The block between the flights (x10-11)
+  //   ends in a rounded tip on row 4, level with the bottom of the flights.
   // Pillars (c): rows 9 and 21, x = 3, 7, 11, 15, 19 and 28 (the hedge bed's left end). The row skips the skylight (x 21-26).
   // NOTE: all the stone paths (p) were removed from this zone - it is now one open stone floor. Exits (X / U / S) are unchanged.
   // The path notes below (x 7-8 path, x 27-28 walkway, 'path p' gaps...) still describe WHERE those lanes were, but they are plain floor now.
@@ -47,13 +61,13 @@ export const ZONES = {
   zone1: {
     name: 'Rooftop Entry',
     rows: [
-    "#..USSSSSSSSSSSS.U#DD#YYHZHUURRRRRRRRR",
-    "#...S..........S......YZHYH..HH......R",
-    "#.....................YYHHZ..HH..CCC.R",
-    "#.....................YHHHY..HH..CTC.R",
-    "#.....................HZHYZ..HH..CTC.R",
-    "#.....................YYHYH..HH..CCC.R",
-    "#....................................R",
+    "#UqHY876SS66SS678YHYq#D#HZHUURRRRRRRRR",
+    "#.qYH765SS55SS567HZHq...HYH..HH......R",
+    "#.qHH654SS44SS456HYZq...HHZ..HH..CCC.R",
+    "#.qZH543SS33SS345ZHHq...HHY..HH..CTC.R",
+    "#.qHY432SS22SS234HHYq...HYZ..HH..CTC.R",
+    "#.qYH321......123YHHq...HYH..HH..CCC.R",
+    "#.qqqmmm......mmmqqqq................R",
     "#....................................R",
     "#............................HHYHYYHZ#",
     "#..c...c...c...c...c.WWWWWW.cYZHZHYHH#",
@@ -81,8 +95,7 @@ export const ZONES = {
     exits: {
       '0,11': { to: 'zone2', spawn: { x: 28, y: 4 },  facing: 'left', label: 'Right path' },
       '0,19': { to: 'zone2', spawn: { x: 28, y: 13 }, facing: 'left', label: 'Left path' },
-      '3,0':  { to: 'zone3', spawn: { x: 2, y: 16 },  facing: 'up', label: 'Up path (left)' },
-      '17,0': { to: 'zone3', spawn: { x: 27, y: 16 }, facing: 'up', label: 'Up path (right)' },
+      '1,0':  { to: 'zone3', spawn: { x: 2, y: 16 },  facing: 'up', label: 'Up path (left)' },
       // 2-wide path at the top right: will lead to the upper zone (no 'to' yet = just shows a hint)
       '27,0': { label: 'Upper zone path' },
       '28,0': { label: 'Upper zone path' },
@@ -188,14 +201,17 @@ ZONES.zone4 = {
 
 // ---- Zone 3 <-> zone 1 links -------------------------------------------------------------
 // Left path: zone 3 (x 2-4, bottom row) -> zone 1 left up path (3,1). Right path: x 25-27 -> (17,1).
-for (const x of [2, 3, 4])    ZONES.zone3.exits[x + ',17'] = { to: 'zone1', spawn: { x: 3,  y: 1 }, facing: 'down', label: 'Left path' };
-for (const x of [25, 26, 27]) ZONES.zone3.exits[x + ',17'] = { to: 'zone1', spawn: { x: 17, y: 1 }, facing: 'down', label: 'Right path' };
+for (const x of [2, 3, 4])    ZONES.zone3.exits[x + ',17'] = { to: 'zone1', spawn: { x: 1,  y: 1 }, facing: 'down', label: 'Left path' };
+// The right up-path in zone 1 was removed, so zone 3's right path now also arrives at the (only) left up-path
+for (const x of [25, 26, 27]) ZONES.zone3.exits[x + ',17'] = { to: 'zone1', spawn: { x: 1, y: 1 }, facing: 'down', label: 'Right path' };
 
-// Stairs: zone 3 has 20 stair tiles (x 5-24); zone 1 has 12 (x 4-15 on the top row).
-// We map position across the stairs proportionally, so you arrive roughly where you left.
-for (let x = 5; x <= 24; x++)
-  ZONES.zone3.exits[x + ',17'] = { to: 'zone1', spawn: { x: 5 + Math.round((x - 5) * 9 / 19), y: 1 }, facing: 'down', label: 'Stairs' };
-for (let x = 4; x <= 15; x++) {
-  const sx = Math.min(14, Math.max(5, x));                       // x of the arrival tile in zone 1 (5-14)
-  ZONES.zone1.exits[x + ',0'] = { to: 'zone3', spawn: { x: 5 + Math.round((sx - 5) * 19 / 9), y: 16 }, facing: 'up', label: 'Stairs' };
+// Stairs: zone 3 has 20 stair tiles (x 5-24). Zone 1 has TWO railed flights (x 8-9 and x 12-13, rows 0-4).
+// The left half of zone 3's stairs (x 5-14) leads down the left flight, the right half (x 15-24) down the right flight.
+for (let x = 5; x <= 24; x++) {
+  const left = x <= 14, k = left ? x - 5 : x - 15;              // k = 0..9 across that half
+  ZONES.zone3.exits[x + ',17'] = { to: 'zone1', spawn: { x: (left ? 8 : 12) + (k >= 5 ? 1 : 0), y: 1 }, facing: 'down', label: 'Stairs' };
+}
+for (const fx of [8, 9, 12, 13]) {                              // top row of each flight in zone 1 -> back up to the lawn
+  const left = fx < 11, sx = (left ? 5 : 15) + (fx - (left ? 8 : 12)) * 5 + 2;
+  ZONES.zone1.exits[fx + ',0'] = { to: 'zone3', spawn: { x: sx, y: 16 }, facing: 'up', label: 'Stairs' };
 }

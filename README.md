@@ -86,6 +86,9 @@ The map is a grid of characters in `js/map.js`. Every row must be the same lengt
 | `~` | Water |
 | `h` | Hedge / planter |
 | `g` | Grass |
+| `1`-`6` | Amphitheatre sitting tiers (solid; 1 = lowest step, 6 = highest), zone 1 upper section |
+| `q` | Semi-wall: low concrete planter wall around the zone 1 hedge beds (solid) |
+| `S` | Stairs (walkable; zone 1 has two railed flights) |
 | `E` / `r` | Escalator belt / rail |
 | `P` / `N` / `I` | Player spawn / NPC / item |
 
