@@ -37,6 +37,7 @@ const COLORS = {
   'J': '#5b5b66', 'Q': '#5b5b66',       // gym door / poster wall (wall colour, details drawn on top)
   'r': '#b8453f',                       // red gym mat (walkable)
   'M': '#5b5b66', 'G': '#5b5b66',       // restroom doors (wall colour, door drawn on top)
+  'k': '#a8a69d', 'z': '#8d9094',       // basement stairwell block / its opening: painted as one piece by drawBasementBlock()
   'W': '#2f3b43',                       // glass skylight: the dark floor you see through it (drawn in drawGlass)
 };
 
@@ -476,6 +477,63 @@ function drawFlight(px, py, tx, ty) {
   }
 }
 
+
+// ---- basement stairwell block (k, zone 1: x 21-23, rows 0-2) ----------------------------------------------------------
+// The real storage room is a concrete wedge: tall at the front, the roof sloping down along the louvered side wall, and a tall
+// framed portal between two wall piers with a stair going down. Top-down it is drawn in the same pseudo-3D as the glass box:
+//   roof (y 0-P_TOP) = 4 shaded bands, lightest at the tall front, with board-formed seams; louvered steel west face
+//   front face (y P_TOP-96) = two wall piers (x21 with two Wi-Fi units, x23) and the portal between them
+//   portal = pale frame, unlit interior that fades to black at the top (it is far away), faint steps that fade upward
+//   (= going down), two handrails vanishing into the dark, and a paved landing at the foot.
+// The portal is drawn over the piers and cuts up into the roof edge, so it can be wider/taller than the middle tile. It is only
+// a picture: ALL tiles of the block are solid ('k'), the player stops on the floor tile in front of it.
+// TWEAK ME (px inside the block, 96 wide x 96 tall; 0,0 = top-left of tile 21,0):
+//   P_X0 / P_X1 = left / right edge of the portal (the middle tile is 32-64)     P_TOP = top edge of the portal AND of the wall piers
+//   (the wall face is as tall as the frame, so the roof gets shorter when P_TOP gets smaller)
+const P_X0 = 24, P_X1 = 72, P_TOP = 36, FRAME = 3, FLOOR_Y = 90;
+const BLOCK = { tx: 21, ty: 0 };
+function drawBasementBlock(camera) {
+  const bx = BLOCK.tx * TILE, by = BLOCK.ty * TILE;
+  if (bx > camera.x + VW || bx + 3 * TILE < camera.x || by > camera.y + VH || by + 3 * TILE < camera.y) return;
+  const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(bx + x, by + y, w, h); };
+  // roof: bands get lighter towards the tall front
+  const bh = P_TOP / 4;
+  ['#8a8880', '#94928a', '#9e9c93', '#a8a69d'].forEach((c, i) => R(0, Math.round(i * bh), 96, Math.ceil(bh), c));
+  for (const x of [10, 21, 42, 53, 74, 85]) R(x, 0, 1, P_TOP, 'rgba(0,0,0,0.08)');          // board-formed seams
+  R(0, 0, 96, 1, '#b7b5ab');                                                             // lit back edge
+  // front face: the two wall piers (full tiles) with seams
+  R(0, P_TOP, 96, 96 - P_TOP, '#c9bda9'); R(0, P_TOP, 96, 1, '#e0d6c4'); R(0, 94, 96, 2, '#a79b88');   // the wall is as tall as the portal frame
+  for (const x of [10, 85]) R(x, P_TOP + 1, 1, 94 - P_TOP - 1, 'rgba(0,0,0,0.07)');
+  for (const x of [5, 14]) {                                                              // two Wi-Fi units on the left pier
+    R(x - 1, 55, 1, 4, '#dcdcd6'); R(x + 5, 55, 1, 4, '#dcdcd6'); R(x, 58, 5, 6, '#f1f1ee');
+    R(x - 1, 64, 1, 4, '#dcdcd6'); R(x + 5, 64, 1, 4, '#dcdcd6');
+  }
+  R(78, 72, 6, 10, 'rgba(0,0,0,0.05)');                                                  // old patch on the right pier
+  // louvered west face
+  R(0, 0, 8, P_TOP, '#6b6a73');
+  for (let y = 2; y < P_TOP; y += 3) R(0, y, 8, 1, 'rgba(0,0,0,0.25)');
+  R(0, 0, 1, P_TOP, '#8f8e98');
+  // the portal: pale frame (cutting up into the roof edge), then the unlit interior
+  const ix0 = P_X0 + FRAME, ix1 = P_X1 - FRAME, iw = ix1 - ix0, it = P_TOP + FRAME, ih = FLOOR_Y - it;
+  R(P_X0, P_TOP, P_X1 - P_X0, 96 - P_TOP, '#d8cfbd'); R(P_X0, P_TOP, P_X1 - P_X0, 1, '#ece4d3');
+  for (let y = it; y < FLOOR_Y; y += 3) {                                                // black at the top, fading up out of the dark
+    const t = (y - it) / ih, v = Math.round(2 + t * t * 38);
+    R(ix0, y, iw, Math.min(3, FLOOR_Y - y), `rgb(${v},${v + 1},${v + 2})`);
+  }
+  [[84, 0.26], [80, 0.20], [76, 0.14], [72, 0.09], [68, 0.05]]                           // faint steps: closer + dimmer going up = going down
+    .forEach(([y, a]) => R(ix0, y, iw, 1, `rgba(170,178,182,${a})`));
+  ctx.lineWidth = 1;                                                                      // handrails converging inwards, vanishing into the dark
+  const k = (y) => (88 - y) / 26 * 7;
+  [[88, 80, 0.40], [80, 72, 0.28], [72, 66, 0.16], [66, 61, 0.08]].forEach(([ya, yb, a]) => {
+    ctx.strokeStyle = `rgba(170,178,182,${a})`; ctx.beginPath();
+    ctx.moveTo(bx + ix0 + 2.5 + k(ya), by + ya); ctx.lineTo(bx + ix0 + 2.5 + k(yb), by + yb);
+    ctx.moveTo(bx + ix1 - 2.5 - k(ya), by + ya); ctx.lineTo(bx + ix1 - 2.5 - k(yb), by + yb); ctx.stroke();
+  });
+  R(ix0, it, 3, ih, 'rgba(0,0,0,0.30)'); R(ix1 - 3, it, 3, ih, 'rgba(0,0,0,0.30)');     // shaded side walls
+  ctx.drawImage(getFloor(zoneId, cols, rows), bx + ix0, by + FLOOR_Y, iw, 96 - FLOOR_Y, bx + ix0, by + FLOOR_Y, iw, 96 - FLOOR_Y);   // landing: the same stone paving as the floor
+  R(ix0, FLOOR_Y, iw, 1, '#cfd3d6');                                                    // metal edge strip at the drop
+}
+
 // Tiles that stand on the grey stone paving (see floor.js). Everything else keeps its flat colour from COLORS.
 const STONE_FLOOR = '.pXURCTaoc12345678m';
 function drawTile(ch, px, py, tx, ty, time) {
@@ -615,7 +673,8 @@ export function render(game, time) {
   for (let ty = y0; ty <= y1; ty++)
     for (let tx = x0; tx <= x1; tx++)
       drawTile(getTile(tx, ty), tx * TILE, ty * TILE, tx, ty, time);
-  if (zoneId === 'zone1') drawEscalatorNose(x0, x1, y0, y1, time);   // the escalator well + rounded end of the escalator railing
+  if (zoneId === 'zone1') drawEscalatorNose(x0, x1, y0, y1, time);
+  if (zoneId === 'zone1') drawBasementBlock(camera);   // storage-room stairwell (k / z tiles)   // the escalator well + rounded end of the escalator railing
   drawGlassTops(ctx, time, camera, VW, VH);          // glass skylight + the students seen through it (after tiles, before characters)
 
   // Item (ID card): small white card with a bobbing motion

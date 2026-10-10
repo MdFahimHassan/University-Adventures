@@ -15,6 +15,10 @@
 //   7, 8   extra-high tiers (same as 1-6, just higher): they let every column of an outer tier block step down on the SAME rows
 // New in zone 4:
 //   C  concrete bench (solid)   T  tree in a grey planter box (solid)   b  bush (WALKABLE - you can walk into it)
+// Basement stairwell block (zone 1, x 21-23, rows 0-2, copied from the real storage room: a concrete wedge, tall at the front):
+//   k  block (solid): x21 and x23 are full wall tiles, x22 rows 0-2 is the roof + the solid portal. Drawn as ONE piece by drawBasementBlock() in renderer.js
+//   The portal (x22 row 2) is solid like a wall: the player stops on the floor tile in front of it (x22 row 3).
+//   z  (reserved, not used on the map right now) - the walkable-entry version of the portal. The way down is added later.
 // Planted areas with a pale guard rail (all solid; the rail is drawn automatically on every edge that faces open floor):
 //   H  clipped hedge    Y  bush mound    Z  tree     (mix them freely, e.g. HHYHZHHY)
 // Gymnasium (zone 1, left wall, rows 24-27):
@@ -61,9 +65,9 @@ export const ZONES = {
   zone1: {
     name: 'Rooftop Entry',
     rows: [
-    "#UqHY876SS66SS678YHYq#D#HZHUURRRRRRRRR",
-    "#.qYH765SS55SS567HZHq...HYH..HH......R",
-    "#.qHH654SS44SS456HYZq...HHZ..HH..CCC.R",
+    "#UqHY876SS66SS678YHYqkkkHZHUURRRRRRRRR",
+    "#.qYH765SS55SS567HZHqkkkHYH..HH......R",
+    "#.qHH654SS44SS456HYZqkkkHHZ..HH..CCC.R",
     "#.qZH543SS33SS345ZHHq...HHY..HH..CTC.R",
     "#.qHY432SS22SS234HHYq...HYZ..HH..CTC.R",
     "#.qYH321......123YHHq...HYH..HH..CCC.R",
